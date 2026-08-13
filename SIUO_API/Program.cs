@@ -106,7 +106,7 @@ app.UseCors("ReactPolicy");
 // HTTPS
 // ==========================================
 
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
 
 // ==========================================
 // AUTENTICACIÓN
