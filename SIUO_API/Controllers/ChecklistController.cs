@@ -59,24 +59,86 @@ namespace SIUO_API.Controllers
             Console.WriteLine($"Folio: {folio}");
 
             // -----------------------------------------------------
-            // Crear carpeta principal del checklist
-            // -----------------------------------------------------
+// Obtener el área del checklist
+// -----------------------------------------------------
 
-            string carpetaBase = Path.Combine(
-                Directory.GetCurrentDirectory(),
-                "ArchivosChecklist",
-                folio
-            );
+string? areaMateriaPrima = null;
 
-            // Carpeta de evidencias
-            string carpetaEvidencias = Path.Combine(
-                carpetaBase,
-                "Evidencias"
-            );
+if (documento.RootElement.TryGetProperty(
+    "areaMateriaPrima",
+    out var areaElemento))
+{
+    areaMateriaPrima =
+        areaElemento.GetString();
+}
+
+// -----------------------------------------------------
+// Determinar carpeta según el área
+// -----------------------------------------------------
+
+string carpetaArea;
+
+if (areaMateriaPrima == "Lata Vacía")
+{
+    carpetaArea = "LataVacia";
+}
+else if (areaMateriaPrima == "Cuarto Monster")
+{
+    carpetaArea = "CuartoMonster";
+}
+else
+{
+    carpetaArea = "Otros";
+}
+
+// -----------------------------------------------------
+// Crear carpeta principal del checklist
+// -----------------------------------------------------
+
+string carpetaBase = Path.Combine(
+    Directory.GetCurrentDirectory(),
+    "ArchivosChecklist",
+    carpetaArea,
+    folio
+);
+
+Directory.CreateDirectory(
+    carpetaBase
+);
+
+// -----------------------------------------------------
+// Crear carpeta de evidencias
+// SOLO para Cuarto Monster
+// -----------------------------------------------------
+
+string? carpetaEvidencias = null;
+
+if (areaMateriaPrima == "Cuarto Monster")
+{
+    carpetaEvidencias = Path.Combine(
+        carpetaBase,
+        "Evidencias"
+    );
 
             Directory.CreateDirectory(
                 carpetaEvidencias
             );
+        }
+
+        Console.WriteLine(
+            $"Área: {areaMateriaPrima}"
+        );
+
+        Console.WriteLine(
+            $"Carpeta checklist: {carpetaBase}"
+        );
+
+        if (carpetaEvidencias != null)
+        {
+            Console.WriteLine(
+                $"Carpeta evidencias: {carpetaEvidencias}"
+            );
+        }
 
             Console.WriteLine(
                 $"Carpeta checklist: {carpetaBase}"
@@ -124,7 +186,8 @@ namespace SIUO_API.Controllers
 
             if (
                 evidencias != null &&
-                evidencias.Count > 0
+                evidencias.Count > 0 &&
+                carpetaEvidencias != null
             )
             {
                 Console.WriteLine(
