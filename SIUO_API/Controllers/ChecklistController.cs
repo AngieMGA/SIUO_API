@@ -280,9 +280,10 @@ if (areaMateriaPrima == "Cuarto Monster")
         // GUARDAR PDF
         // =========================================================
 
-        [HttpPost("pdf")]
+       [HttpPost("pdf")]
         public async Task<IActionResult> GuardarPDF(
             [FromForm] string folio,
+            [FromForm] string areaMateriaPrima,
             [FromForm] IFormFile pdf)
         {
             Console.WriteLine("=================================");
@@ -316,10 +317,46 @@ if (areaMateriaPrima == "Cuarto Monster")
             // Carpeta del checklist
             // -----------------------------------------------------
 
+            // -----------------------------------------------------
+// Determinar carpeta según el área
+// -----------------------------------------------------
+
+string carpetaArea;
+
+if (areaMateriaPrima == "Lata Vacía")
+{
+    carpetaArea = "LataVacia";
+}
+else if (areaMateriaPrima == "Cuarto Monster")
+{
+    carpetaArea = "CuartoMonster";
+}
+else
+{
+    carpetaArea = "Otros";
+}
+
+// -----------------------------------------------------
+// Carpeta del checklist
+// -----------------------------------------------------
+
             string carpetaBase = Path.Combine(
                 Directory.GetCurrentDirectory(),
                 "ArchivosChecklist",
+                carpetaArea,
                 folio
+            );
+
+            Directory.CreateDirectory(
+                carpetaBase
+            );
+
+            Console.WriteLine(
+                $"Área PDF: {areaMateriaPrima}"
+            );
+
+            Console.WriteLine(
+                $"Carpeta PDF: {carpetaBase}"
             );
 
             Directory.CreateDirectory(
