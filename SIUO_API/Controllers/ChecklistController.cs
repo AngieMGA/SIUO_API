@@ -59,7 +59,22 @@ namespace SIUO_API.Controllers
             Console.WriteLine($"Folio: {folio}");
 
             // -----------------------------------------------------
-// Obtener el área del checklist
+// -----------------------------------------------------
+// Obtener tipo de checklist
+// -----------------------------------------------------
+
+string? tipoChecklist = null;
+
+if (documento.RootElement.TryGetProperty(
+    "tipoChecklist",
+    out var tipoChecklistElemento))
+{
+    tipoChecklist =
+        tipoChecklistElemento.GetString();
+}
+
+// -----------------------------------------------------
+// Obtener área de materia prima
 // -----------------------------------------------------
 
 string? areaMateriaPrima = null;
@@ -73,22 +88,18 @@ if (documento.RootElement.TryGetProperty(
 }
 
 // -----------------------------------------------------
-// Determinar carpeta según el área
+// Determinar carpeta según el TIPO DE CHECKLIST
 // -----------------------------------------------------
 
-string carpetaArea;
+string carpetaChecklist;
 
-if (areaMateriaPrima == "Lata Vacía")
+if (!string.IsNullOrWhiteSpace(tipoChecklist))
 {
-    carpetaArea = "LataVacia";
-}
-else if (areaMateriaPrima == "Cuarto Monster")
-{
-    carpetaArea = "CuartoMonster";
+    carpetaChecklist = tipoChecklist;
 }
 else
 {
-    carpetaArea = "Otros";
+    carpetaChecklist = "Otros";
 }
 
 // -----------------------------------------------------
@@ -98,7 +109,7 @@ else
 string carpetaBase = Path.Combine(
     Directory.GetCurrentDirectory(),
     "ArchivosChecklist",
-    carpetaArea,
+    carpetaChecklist,
     folio
 );
 
@@ -283,7 +294,8 @@ if (areaMateriaPrima == "Cuarto Monster")
        [HttpPost("pdf")]
         public async Task<IActionResult> GuardarPDF(
             [FromForm] string folio,
-            [FromForm] string areaMateriaPrima,
+            [FromForm] string? areaMateriaPrima,
+            [FromForm] string tipoChecklist,
             [FromForm] IFormFile pdf)
         {
             Console.WriteLine("=================================");
@@ -318,22 +330,19 @@ if (areaMateriaPrima == "Cuarto Monster")
             // -----------------------------------------------------
 
             // -----------------------------------------------------
-// Determinar carpeta según el área
+// -----------------------------------------------------
+// Determinar carpeta según el TIPO DE CHECKLIST
 // -----------------------------------------------------
 
-string carpetaArea;
+string carpetaChecklist;
 
-if (areaMateriaPrima == "Lata Vacía")
+if (!string.IsNullOrWhiteSpace(tipoChecklist))
 {
-    carpetaArea = "LataVacia";
-}
-else if (areaMateriaPrima == "Cuarto Monster")
-{
-    carpetaArea = "CuartoMonster";
+    carpetaChecklist = tipoChecklist;
 }
 else
 {
-    carpetaArea = "Otros";
+    carpetaChecklist = "Otros";
 }
 
 // -----------------------------------------------------
@@ -343,7 +352,7 @@ else
             string carpetaBase = Path.Combine(
                 Directory.GetCurrentDirectory(),
                 "ArchivosChecklist",
-                carpetaArea,
+                carpetaChecklist,
                 folio
             );
 
