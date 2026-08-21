@@ -296,7 +296,7 @@ if (areaMateriaPrima == "Cuarto Monster")
             [FromForm] string folio,
             [FromForm] string? areaMateriaPrima,
             [FromForm] string tipoChecklist,
-            [FromForm] IFormFile pdf)
+            IFormFile pdf)
         {
             Console.WriteLine("=================================");
             Console.WriteLine("PDF RECIBIDO");

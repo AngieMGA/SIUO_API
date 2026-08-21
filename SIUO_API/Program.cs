@@ -33,6 +33,9 @@ builder.Services.AddControllers();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<IUsuarioRepository, UsuarioRepository>();
 
+builder.Services.AddScoped<SqlConnectionFactory>();
+builder.Services.AddScoped<IDispositivoRepository, DispositivoRepository>();
+
 // ==========================================
 // JWT
 // ==========================================
