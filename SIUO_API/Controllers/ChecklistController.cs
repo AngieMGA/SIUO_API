@@ -58,8 +58,7 @@ namespace SIUO_API.Controllers
 
             Console.WriteLine($"Folio: {folio}");
 
-            // -----------------------------------------------------
-// -----------------------------------------------------
+ // -----------------------------------------------------
 // Obtener tipo de checklist
 // -----------------------------------------------------
 
@@ -88,110 +87,137 @@ if (documento.RootElement.TryGetProperty(
 }
 
 // -----------------------------------------------------
-// Determinar carpeta según el TIPO DE CHECKLIST
+// Obtener número de DELIVERY
 // -----------------------------------------------------
 
-string carpetaChecklist;
+string? delivery = null;
 
-if (!string.IsNullOrWhiteSpace(tipoChecklist))
+if (documento.RootElement.TryGetProperty(
+    "delivery",
+    out var deliveryElemento))
 {
-    carpetaChecklist = tipoChecklist;
+    delivery =
+        deliveryElemento.GetString();
 }
-else
+
+// Si no viene Delivery
+if (string.IsNullOrWhiteSpace(delivery))
 {
-    carpetaChecklist = "Otros";
+    delivery = "SIN-DELIVERY";
 }
+
+// Evitar caracteres/rutas no deseadas
+delivery = Path.GetFileName(delivery);
+
 
 // -----------------------------------------------------
-// Crear carpeta principal del checklist
+// FECHA ACTUAL
+// -----------------------------------------------------
+
+DateTime fechaActual = DateTime.Now;
+
+string anio =
+    fechaActual.ToString("yyyy");
+
+string mes =
+    $"{fechaActual.Month}.{fechaActual.ToString("MMMM", new System.Globalization.CultureInfo("es-MX")).ToUpper()}";
+
+string dia =
+    $"{fechaActual.Day:D2}.{fechaActual.ToString("MMMM", new System.Globalization.CultureInfo("es-MX")).ToUpper()}";
+
+
+// -----------------------------------------------------
+// CREAR CARPETA PRINCIPAL
 // -----------------------------------------------------
 
 string carpetaBase = Path.Combine(
     Directory.GetCurrentDirectory(),
-    "ArchivosChecklist",
-    carpetaChecklist,
-    folio
+    "Pruebas",
+    anio,
+    mes,
+    dia,
+    delivery
 );
 
 Directory.CreateDirectory(
     carpetaBase
 );
 
+
 // -----------------------------------------------------
-// Crear carpeta de evidencias
-// SOLO para Cuarto Monster
+// CREAR CARPETA DE EVIDENCIAS
 // -----------------------------------------------------
 
-string? carpetaEvidencias = null;
-
-if (areaMateriaPrima == "Cuarto Monster")
-{
-    carpetaEvidencias = Path.Combine(
+string carpetaEvidencias =
+    Path.Combine(
         carpetaBase,
         "Evidencias"
     );
 
-            Directory.CreateDirectory(
-                carpetaEvidencias
-            );
-        }
+Directory.CreateDirectory(
+    carpetaEvidencias
+);
 
-        Console.WriteLine(
-            $"Área: {areaMateriaPrima}"
-        );
 
-        Console.WriteLine(
-            $"Carpeta checklist: {carpetaBase}"
-        );
+// -----------------------------------------------------
+// MOSTRAR RUTAS EN CONSOLA
+// -----------------------------------------------------
 
-        if (carpetaEvidencias != null)
-        {
-            Console.WriteLine(
-                $"Carpeta evidencias: {carpetaEvidencias}"
-            );
-        }
+Console.WriteLine(
+    $"Tipo checklist: {tipoChecklist}"
+);
 
-            Console.WriteLine(
-                $"Carpeta checklist: {carpetaBase}"
-            );
+Console.WriteLine(
+    $"Área: {areaMateriaPrima}"
+);
 
-            Console.WriteLine(
-                $"Carpeta evidencias: {carpetaEvidencias}"
-            );
+Console.WriteLine(
+    $"Delivery: {delivery}"
+);
 
-            // =====================================================
-            // GUARDAR CHECKLIST.JSON
-            // =====================================================
+Console.WriteLine(
+    $"Carpeta checklist: {carpetaBase}"
+);
 
-            string rutaChecklist = Path.Combine(
-                carpetaBase,
-                "Checklist.json"
-            );
+Console.WriteLine(
+    $"Carpeta evidencias: {carpetaEvidencias}"
+);
 
-            var opcionesJson =
-                new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                };
 
-            string jsonFormateado =
-                JsonSerializer.Serialize(
-                    documento.RootElement,
-                    opcionesJson
-                );
+// =====================================================
+// GUARDAR CHECKLIST.JSON
+// =====================================================
 
-            await System.IO.File.WriteAllTextAsync(
-                rutaChecklist,
-                jsonFormateado
-            );
+string rutaChecklist = Path.Combine(
+    carpetaBase,
+    "Checklist.json"
+);
 
-            Console.WriteLine(
-                $"Checklist JSON guardado: {rutaChecklist}"
-            );
+var opcionesJson =
+    new JsonSerializerOptions
+    {
+        WriteIndented = true
+    };
 
-            // =====================================================
-            // GUARDAR EVIDENCIAS
-            // =====================================================
+string jsonFormateado =
+    JsonSerializer.Serialize(
+        documento.RootElement,
+        opcionesJson
+    );
+
+await System.IO.File.WriteAllTextAsync(
+    rutaChecklist,
+    jsonFormateado
+);
+
+Console.WriteLine(
+    $"Checklist JSON guardado: {rutaChecklist}"
+);
+
+        
+// =====================================================
+// GUARDAR EVIDENCIAS
+// =====================================================
 
             int evidenciasGuardadas = 0;
 
