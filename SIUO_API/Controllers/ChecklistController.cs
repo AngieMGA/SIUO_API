@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
+using SIUO_API.Services;
 
 namespace SIUO_API.Controllers
 {
@@ -7,6 +8,13 @@ namespace SIUO_API.Controllers
     [Route("api/[controller]")]
     public class ChecklistController : ControllerBase
     {
+
+        private readonly FtpService _ftpService;
+
+        public ChecklistController(FtpService ftpService)
+        {
+            _ftpService = ftpService;
+        }
         // =========================================================
         // GUARDAR CHECKLIST + JSON + EVIDENCIAS
         // =========================================================
@@ -58,7 +66,8 @@ namespace SIUO_API.Controllers
 
             Console.WriteLine($"Folio: {folio}");
 
- // -----------------------------------------------------
+// -----------------------------------------------------
+// -----------------------------------------------------
 // Obtener tipo de checklist
 // -----------------------------------------------------
 
@@ -87,6 +96,21 @@ if (documento.RootElement.TryGetProperty(
 }
 
 // -----------------------------------------------------
+// Determinar carpeta según el TIPO DE CHECKLIST
+// -----------------------------------------------------
+
+string carpetaChecklist;
+
+if (!string.IsNullOrWhiteSpace(tipoChecklist))
+{
+    carpetaChecklist = tipoChecklist;
+}
+else
+{
+    carpetaChecklist = "Otros";
+}
+
+// -----------------------------------------------------
 // Obtener número de DELIVERY
 // -----------------------------------------------------
 
@@ -96,48 +120,59 @@ if (documento.RootElement.TryGetProperty(
     "delivery",
     out var deliveryElemento))
 {
-    delivery =
-        deliveryElemento.GetString();
+    delivery = deliveryElemento.GetString();
 }
 
-// Si no viene Delivery
 if (string.IsNullOrWhiteSpace(delivery))
 {
     delivery = "SIN-DELIVERY";
 }
 
-// Evitar caracteres/rutas no deseadas
 delivery = Path.GetFileName(delivery);
 
 
 // -----------------------------------------------------
-// FECHA ACTUAL
+// Crear carpeta principal del checklist
 // -----------------------------------------------------
 
-DateTime fechaActual = DateTime.Now;
+string carpetaBase;
 
-string anio =
-    fechaActual.ToString("yyyy");
+if (tipoChecklist == "CHK-TRANSPORTE")
+{
+    DateTime fechaActual = DateTime.Now;
 
-string mes =
-    $"{fechaActual.Month}.{fechaActual.ToString("MMMM", new System.Globalization.CultureInfo("es-MX")).ToUpper()}";
+    string anio =
+        fechaActual.ToString("yyyy");
 
-string dia =
-    $"{fechaActual.Day:D2}.{fechaActual.ToString("MMMM", new System.Globalization.CultureInfo("es-MX")).ToUpper()}";
+    string mes =
+        $"{fechaActual.Month}." +
+        fechaActual.ToString(
+            "MMMM",
+            new System.Globalization.CultureInfo("es-MX")
+        ).ToUpper();
 
+    string dia =
+        fechaActual.ToString("dd.MM.yyyy");
 
-// -----------------------------------------------------
-// CREAR CARPETA PRINCIPAL
-// -----------------------------------------------------
-
-string carpetaBase = Path.Combine(
-    Directory.GetCurrentDirectory(),
-    "Pruebas",
-    anio,
-    mes,
-    dia,
-    delivery
-);
+    carpetaBase = Path.Combine(
+        Directory.GetCurrentDirectory(),
+        "Pruebas",
+        anio,
+        mes,
+        dia,
+        delivery
+    );
+}
+else
+{
+    // Los demás checklists permanecen igual
+    carpetaBase = Path.Combine(
+        Directory.GetCurrentDirectory(),
+        "ArchivosChecklist",
+        carpetaChecklist,
+        folio
+    );
+}
 
 Directory.CreateDirectory(
     carpetaBase
@@ -145,79 +180,113 @@ Directory.CreateDirectory(
 
 
 // -----------------------------------------------------
-// CREAR CARPETA DE EVIDENCIAS
+// Crear carpeta de evidencias
+// SOLO CHK-TRANSPORTE
 // -----------------------------------------------------
 
-string carpetaEvidencias =
-    Path.Combine(
+string? carpetaEvidencias = null;
+
+if (tipoChecklist == "CHK-TRANSPORTE")
+{
+    carpetaEvidencias = Path.Combine(
         carpetaBase,
         "Evidencias"
     );
 
-Directory.CreateDirectory(
-    carpetaEvidencias
-);
+    Directory.CreateDirectory(
+        carpetaEvidencias
+    );
+}
 
+        Console.WriteLine(
+            $"Área: {areaMateriaPrima}"
+        );
 
-// -----------------------------------------------------
-// MOSTRAR RUTAS EN CONSOLA
-// -----------------------------------------------------
+        Console.WriteLine(
+            $"Carpeta checklist: {carpetaBase}"
+        );
 
-Console.WriteLine(
-    $"Tipo checklist: {tipoChecklist}"
-);
+        if (carpetaEvidencias != null)
+        {
+            Console.WriteLine(
+                $"Carpeta evidencias: {carpetaEvidencias}"
+            );
+        }
 
-Console.WriteLine(
-    $"Área: {areaMateriaPrima}"
-);
+            Console.WriteLine(
+                $"Carpeta checklist: {carpetaBase}"
+            );
 
-Console.WriteLine(
-    $"Delivery: {delivery}"
-);
+            Console.WriteLine(
+                $"Carpeta evidencias: {carpetaEvidencias}"
+            );
 
-Console.WriteLine(
-    $"Carpeta checklist: {carpetaBase}"
-);
+            // =====================================================
+            // GUARDAR CHECKLIST.JSON
+            // =====================================================
 
-Console.WriteLine(
-    $"Carpeta evidencias: {carpetaEvidencias}"
-);
+            string rutaChecklist = Path.Combine(
+                carpetaBase,
+                "Checklist.json"
+            );
 
+            var opcionesJson =
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                };
 
+            string jsonFormateado =
+                JsonSerializer.Serialize(
+                    documento.RootElement,
+                    opcionesJson
+                );
+
+            await System.IO.File.WriteAllTextAsync(
+                rutaChecklist,
+                jsonFormateado
+            );
+
+            Console.WriteLine(
+                $"Checklist JSON guardado: {rutaChecklist}"
+            );
+
+            // =====================================================
+// SUBIR CHECKLIST.JSON AL FTP
 // =====================================================
-// GUARDAR CHECKLIST.JSON
-// =====================================================
 
-string rutaChecklist = Path.Combine(
-    carpetaBase,
-    "Checklist.json"
-);
+if (tipoChecklist == "CHK-TRANSPORTE")
+{
+    string carpetaPruebasLocal =
+        Path.Combine(
+            Directory.GetCurrentDirectory(),
+            "Pruebas"
+        );
 
-var opcionesJson =
-    new JsonSerializerOptions
-    {
-        WriteIndented = true
-    };
+    string rutaRelativa =
+        Path.GetRelativePath(
+            carpetaPruebasLocal,
+            carpetaBase
+        );
 
-string jsonFormateado =
-    JsonSerializer.Serialize(
-        documento.RootElement,
-        opcionesJson
+    string rutaRemota =
+        "/Pruebas/" +
+        rutaRelativa.Replace("\\", "/") +
+        "/Checklist.json";
+
+    await _ftpService.SubirArchivoAsync(
+        rutaChecklist,
+        rutaRemota
     );
 
-await System.IO.File.WriteAllTextAsync(
-    rutaChecklist,
-    jsonFormateado
-);
+    Console.WriteLine(
+        $"Checklist subido al FTP: {rutaRemota}"
+    );
+}
 
-Console.WriteLine(
-    $"Checklist JSON guardado: {rutaChecklist}"
-);
-
-        
-// =====================================================
-// GUARDAR EVIDENCIAS
-// =====================================================
+            // =====================================================
+            // GUARDAR EVIDENCIAS
+            // =====================================================
 
             int evidenciasGuardadas = 0;
 
@@ -267,15 +336,55 @@ Console.WriteLine(
                             nombreArchivo
                         );
 
-                    using var stream =
-                        new FileStream(
-                            rutaArchivo,
-                            FileMode.Create
+                    using (
+                        var stream =
+                            new FileStream(
+                                rutaArchivo,
+                                FileMode.Create
+                            )
+                    )
+                    {
+                        await evidencia.CopyToAsync(
+                            stream
                         );
+                    }
 
-                    await evidencia.CopyToAsync(
-                        stream
-                    );
+// -----------------------------------------------------
+// SUBIR EVIDENCIA AL FTP
+// -----------------------------------------------------
+Console.WriteLine(
+    $"TIPO CHECKLIST ANTES DE FTP: [{tipoChecklist}]"
+);
+
+if (tipoChecklist == "CHK-TRANSPORTE")
+{
+    string carpetaPruebasLocal =
+        Path.Combine(
+            Directory.GetCurrentDirectory(),
+            "Pruebas"
+        );
+
+    string rutaRelativa =
+        Path.GetRelativePath(
+            carpetaPruebasLocal,
+            carpetaBase
+        );
+
+    string rutaRemota =
+        "/Pruebas/" +
+        rutaRelativa.Replace("\\", "/") +
+        "/Evidencias/" +
+        nombreArchivo;
+
+    await _ftpService.SubirArchivoAsync(
+        rutaArchivo,
+        rutaRemota
+    );
+
+    Console.WriteLine(
+        $"Evidencia subida al FTP: {rutaRemota}"
+    );
+}
 
                     evidenciasGuardadas++;
 
@@ -322,6 +431,7 @@ Console.WriteLine(
             [FromForm] string folio,
             [FromForm] string? areaMateriaPrima,
             [FromForm] string tipoChecklist,
+            [FromForm] string? delivery,
             IFormFile pdf)
         {
             Console.WriteLine("=================================");
@@ -352,6 +462,17 @@ Console.WriteLine(
             folio = Path.GetFileName(folio);
 
             // -----------------------------------------------------
+            // Obtener número de DELIVERY
+            // -----------------------------------------------------
+
+            if (string.IsNullOrWhiteSpace(delivery))
+            {
+                delivery = "SIN-DELIVERY";
+            }
+
+            delivery = Path.GetFileName(delivery);
+
+            // -----------------------------------------------------
             // Carpeta del checklist
             // -----------------------------------------------------
 
@@ -375,17 +496,52 @@ else
 // Carpeta del checklist
 // -----------------------------------------------------
 
-            string carpetaBase = Path.Combine(
-                Directory.GetCurrentDirectory(),
-                "ArchivosChecklist",
-                carpetaChecklist,
-                folio
-            );
+            // -----------------------------------------------------
+// CREAR CARPETA PRINCIPAL
+// SOLO CHK-TRANSPORTE
+// -----------------------------------------------------
 
-            Directory.CreateDirectory(
-                carpetaBase
-            );
+string carpetaBase;
 
+if (tipoChecklist == "CHK-TRANSPORTE")
+{
+    DateTime fechaActual = DateTime.Now;
+
+    string anio =
+        fechaActual.ToString("yyyy");
+
+    string mes =
+        $"{fechaActual.Month}.{fechaActual.ToString(
+            "MMMM",
+            new System.Globalization.CultureInfo("es-MX")
+        ).ToUpper()}";
+
+    string dia =
+        fechaActual.ToString("dd.MM.yyyy");
+
+    carpetaBase = Path.Combine(
+        Directory.GetCurrentDirectory(),
+        "Pruebas",
+        anio,
+        mes,
+        dia,
+        delivery
+    );
+}
+else
+{
+    // LOS DEMÁS CHECKLISTS SE QUEDAN COMO ESTÁN
+    carpetaBase = Path.Combine(
+        Directory.GetCurrentDirectory(),
+        "ArchivosChecklist",
+        carpetaChecklist,
+        folio
+    );
+}
+
+Directory.CreateDirectory(
+    carpetaBase
+);
             Console.WriteLine(
                 $"Área PDF: {areaMateriaPrima}"
             );
