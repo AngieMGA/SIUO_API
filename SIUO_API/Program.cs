@@ -35,6 +35,8 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<IUsuarioRepository, UsuarioRepository>();
 
 builder.Services.AddScoped<SqlConnectionFactory>();
+builder.Services.AddScoped<ChecklistConnectionFactory>();
+builder.Services.AddScoped<ChecklistRepository>();
 builder.Services.AddScoped<IDispositivoRepository, DispositivoRepository>();
 
 // ==========================================

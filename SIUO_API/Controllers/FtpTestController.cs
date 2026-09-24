@@ -9,7 +9,6 @@ namespace SIUO_API.Controllers
     public class FtpTestController : ControllerBase
     {
         private readonly FtpService _ftpService;
-
         private readonly IConfiguration _configuration;
 
         public FtpTestController(
@@ -20,88 +19,112 @@ namespace SIUO_API.Controllers
             _configuration = configuration;
         }
 
-       [HttpGet]
-public async Task<IActionResult> ProbarFTP()
-{
-    string servidor =
-        _configuration["FTP:Servidor"]
-        ?? throw new Exception(
-            "No está configurado el servidor FTP."
-        );
-
-    string usuario =
-        _configuration["FTP:Usuario"]
-        ?? throw new Exception(
-            "No está configurado el usuario FTP."
-        );
-
-    string password =
-        _configuration["FTP:Password"]
-        ?? throw new Exception(
-            "No está configurada la contraseña FTP."
-        );
-
-    int puerto =
-        _configuration.GetValue<int>(
-            "FTP:Puerto"
-        );
-
-    using var cliente =
-        new AsyncFtpClient(
-            servidor,
-            usuario,
-            password,
-            puerto
-        );
-
-    await cliente.Connect();
-
-    var contenidoRaiz =
-        await cliente.GetListing("/");
-
-    var contenidoPruebas =
-        await cliente.GetListing("/Pruebas");
-
-    var contenidoPruebas2026 =
-        await cliente.GetListing("/Pruebas/2026");
-
-    var contenidoSeptiembre =
-        await cliente.GetListing(
-            "/Pruebas/2026/9.SEPTIEMBRE"
-        );
-
-    await cliente.Disconnect();
-
-    return Ok(new
-    {
-        Raiz = contenidoRaiz.Select(x => new
+        [HttpGet]
+        public async Task<IActionResult> ProbarFTP()
         {
-            x.Name,
-            x.FullName,
-            x.Type
-        }),
+            string servidor =
+                _configuration["FTP:Servidor"]
+                ?? throw new Exception(
+                    "No está configurado el servidor FTP."
+                );
 
-        Pruebas = contenidoPruebas.Select(x => new
-        {
-            x.Name,
-            x.FullName,
-            x.Type
-        }),
+            string usuario =
+                _configuration["FTP:Usuario"]
+                ?? throw new Exception(
+                    "No está configurado el usuario FTP."
+                );
 
-       Pruebas2026 = contenidoPruebas2026.Select(x => new
-        {
-            x.Name,
-            x.FullName,
-            x.Type
-        }),
+            string password =
+                _configuration["FTP:Password"]
+                ?? throw new Exception(
+                    "No está configurada la contraseña FTP."
+                );
 
-        Septiembre = contenidoSeptiembre.Select(x => new
-        {
-            x.Name,
-            x.FullName,
-            x.Type
-        })
-    });
-}
+            int puerto =
+                _configuration.GetValue<int>(
+                    "FTP:Puerto"
+                );
+
+            using var cliente =
+                new AsyncFtpClient(
+                    servidor,
+                    usuario,
+                    password,
+                    puerto
+                );
+
+            await cliente.Connect();
+
+            var contenidoRaiz =
+                await cliente.GetListing("/");
+
+            var contenidoPruebas =
+                await cliente.GetListing("/Pruebas");
+
+            var contenidoPruebas2026 =
+                await cliente.GetListing("/Pruebas/2026");
+
+            var contenidoSeptiembre =
+                await cliente.GetListing(
+                    "/Pruebas/2026/9.SEPTIEMBRE"
+                );
+
+            var contenidoDia =
+                await cliente.GetListing(
+                    "/Pruebas/2026/9.SEPTIEMBRE/24.09.2026"
+                );
+
+            var contenidoDelivery =
+                await cliente.GetListing(
+                    "/Pruebas/2026/9.SEPTIEMBRE/24.09.2026/202684692"
+                );
+
+            await cliente.Disconnect();
+
+            return Ok(new
+            {
+                Raiz = contenidoRaiz.Select(x => new
+                {
+                    x.Name,
+                    x.FullName,
+                    x.Type
+                }),
+
+                Pruebas = contenidoPruebas.Select(x => new
+                {
+                    x.Name,
+                    x.FullName,
+                    x.Type
+                }),
+
+                Pruebas2026 = contenidoPruebas2026.Select(x => new
+                {
+                    x.Name,
+                    x.FullName,
+                    x.Type
+                }),
+
+                Septiembre = contenidoSeptiembre.Select(x => new
+                {
+                    x.Name,
+                    x.FullName,
+                    x.Type
+                }),
+
+                Dia = contenidoDia.Select(x => new
+                {
+                    x.Name,
+                    x.FullName,
+                    x.Type
+                }),
+
+                Delivery = contenidoDelivery.Select(x => new
+                {
+                    x.Name,
+                    x.FullName,
+                    x.Type
+                })
+            });
+        }
     }
 }
