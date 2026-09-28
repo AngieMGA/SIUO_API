@@ -525,26 +525,14 @@ public async Task GuardarCaducidadAsync(
     await command.ExecuteNonQueryAsync();
 }
 
-// =========================================================
-// GUARDAR RESPUESTA DE CONDICIONES DEL MATERIAL
-// =========================================================
-// Este método guarda una respuesta de tipo texto para una
-// pregunta del checklist.
-//
-// Se utiliza para preguntas que manejan las opciones:
-// CUMPLE, NO_CUMPLE y NA.
-//
-// A diferencia de GuardarRespuestaCondicionAsync(bool),
-// este método recibe el valor seleccionado como texto.
-// =========================================================
-
 public async Task GuardarRespuestaOpcionAsync(
     int idInspeccion,
     string codigoPregunta,
     string valorRespuesta,
     string? observaciones)
 {
-    using var connection = _connectionFactory.CreateConnection();
+    using var connection =
+        _connectionFactory.CreateConnection();
 
     await connection.OpenAsync();
 
@@ -564,16 +552,16 @@ public async Task GuardarRespuestaOpcionAsync(
             @valorRespuesta,
             @observaciones
         FROM [userchecklist].[PREGUNTA] p
+
         INNER JOIN [userchecklist].[OPCION_RESPUESTA] o
             ON o.id_pregunta = p.id_pregunta
+
         WHERE p.codigo = @codigoPregunta
           AND o.valor = @valorRespuesta;
     ";
 
-    using var command = new SqlCommand(
-        consulta,
-        connection
-    );
+    using var command =
+        new SqlCommand(consulta, connection);
 
     command.Parameters.AddWithValue(
         "@idInspeccion",
@@ -597,6 +585,99 @@ public async Task GuardarRespuestaOpcionAsync(
 
     await command.ExecuteNonQueryAsync();
 }
+
+// GUARDAR RESPUESTA DE CONDICIONES DEL MATERIAL
+// Este método guarda una respuesta de tipo texto para una
+// pregunta del checklist.
+//
+// Se utiliza para preguntas que manejan las opciones:
+// CUMPLE, NO_CUMPLE y NA.
+//
+// A diferencia de GuardarRespuestaCondicionAsync(bool),
+// este método recibe el valor seleccionado como texto.
+// =========================================================
+
+public async Task GuardarRespuestaOpcionPorChecklistAsync(
+    int idInspeccion,
+    string tipoChecklist,
+    string codigoPregunta,
+    string valorRespuesta,
+    string? observaciones)
+{
+    using var connection =
+        _connectionFactory.CreateConnection();
+
+    await connection.OpenAsync();
+
+    const string consulta = @"
+        INSERT INTO [userchecklist].[RESPUESTA]
+        (
+            id_inspeccion,
+            id_pregunta,
+            id_opcion,
+            valor,
+            observaciones
+        )
+        SELECT
+            @idInspeccion,
+            p.id_pregunta,
+            o.id_opcion,
+            @valorRespuesta,
+            @observaciones
+        FROM [userchecklist].[INSPECCION] i
+
+        INNER JOIN [userchecklist].[VERSION_CHECKLIST] v
+            ON v.id_version = i.id_version
+
+        INNER JOIN [userchecklist].[SECCION] s
+            ON s.id_version = v.id_version
+
+        INNER JOIN [userchecklist].[PREGUNTA] p
+            ON p.id_seccion = s.id_seccion
+
+        INNER JOIN [userchecklist].[OPCION_RESPUESTA] o
+            ON o.id_pregunta = p.id_pregunta
+
+        INNER JOIN [userchecklist].[CHECKLIST] c
+            ON c.id_checklist = v.id_checklist
+
+        WHERE i.id_inspeccion = @idInspeccion
+          AND c.codigo = @tipoChecklist
+          AND p.codigo = @codigoPregunta
+          AND o.valor = @valorRespuesta;
+    ";
+
+    using var command =
+        new SqlCommand(consulta, connection);
+
+    command.Parameters.AddWithValue(
+        "@idInspeccion",
+        idInspeccion
+    );
+
+    command.Parameters.AddWithValue(
+        "@tipoChecklist",
+        tipoChecklist
+    );
+
+    command.Parameters.AddWithValue(
+        "@codigoPregunta",
+        codigoPregunta
+    );
+
+    command.Parameters.AddWithValue(
+        "@valorRespuesta",
+        valorRespuesta
+    );
+
+    command.Parameters.AddWithValue(
+        "@observaciones",
+        (object?)observaciones ?? DBNull.Value
+    );
+
+    await command.ExecuteNonQueryAsync();
+}
+
 
 // =========================================================
 // GUARDAR TIPO DE ACTIVIDAD DE TRASVASE
@@ -948,6 +1029,289 @@ public async Task GuardarIncidenciaLlantaAsync(
     command.Parameters.AddWithValue(
         "@incidencia",
         incidencia
+    );
+
+    await command.ExecuteNonQueryAsync();
+}
+
+
+// =========================================================
+// GUARDAR DATOS DE RECEPCIÓN
+// CHECKLIST: SG-F-24-01
+// =========================================================
+public async Task GuardarDatosRecepcionAsync(
+    int idInspeccion,
+    string area,
+    string? material,
+    string proveedor,
+    string operador,
+    string? lote,
+    string? turno,
+    string? diseno,
+    string? especificarMaterial,
+    string? tripulacion,
+    string? placasNumero,
+    string? ordenCompra,
+    string? facturaRemision,
+    bool? alergenoMicroSensitivo)
+{
+    using var connection = _connectionFactory.CreateConnection();
+
+    await connection.OpenAsync();
+
+    // ---------------------------------------------------------
+    // Obtener ID del área
+    // ---------------------------------------------------------
+
+    int idArea;
+
+    const string consultaArea = @"
+        SELECT TOP 1 id_area
+        FROM [userchecklist].[AREA]
+        WHERE nombre = @nombre
+          AND activo = 1;
+    ";
+
+    using (var commandArea = new SqlCommand(
+        consultaArea,
+        connection))
+    {
+        commandArea.Parameters.AddWithValue(
+            "@nombre",
+            area
+        );
+
+        var resultado = await commandArea.ExecuteScalarAsync();
+
+        if (resultado == null)
+        {
+            throw new InvalidOperationException(
+                $"No se encontró el área activa: {area}"
+            );
+        }
+
+        idArea = Convert.ToInt32(resultado);
+    }
+
+    // ---------------------------------------------------------
+    // Obtener ID del material
+    // ---------------------------------------------------------
+
+    int? idMaterial = null;
+
+    if (!string.IsNullOrWhiteSpace(material))
+    {
+        const string consultaMaterial = @"
+            SELECT TOP 1 id_material
+            FROM [userchecklist].[MATERIAL]
+            WHERE nombre = @nombre
+              AND activo = 1;
+        ";
+
+        using var commandMaterial = new SqlCommand(
+            consultaMaterial,
+            connection
+        );
+
+        commandMaterial.Parameters.AddWithValue(
+            "@nombre",
+            material
+        );
+
+        var resultadoMaterial =
+            await commandMaterial.ExecuteScalarAsync();
+
+        if (resultadoMaterial == null)
+        {
+            throw new InvalidOperationException(
+                $"No se encontró el material activo: {material}"
+            );
+        }
+
+        idMaterial = Convert.ToInt32(resultadoMaterial);
+    }
+
+    // ---------------------------------------------------------
+    // Obtener ID del proveedor
+    // ---------------------------------------------------------
+
+    int idProveedor;
+
+// =========================================================
+// OBTENER O CREAR PROVEEDOR
+// =========================================================
+
+using (var commandProveedor = new SqlCommand(
+    @"
+    SELECT id_proveedor
+    FROM [userchecklist].[PROVEEDOR]
+    WHERE nombre = @nombre
+    ",
+    connection))
+{
+    commandProveedor.Parameters.AddWithValue(
+        "@nombre",
+        proveedor.Trim()
+    );
+
+    object? resultado =
+        await commandProveedor.ExecuteScalarAsync();
+
+    if (resultado != null)
+    {
+        idProveedor = Convert.ToInt32(resultado);
+    }
+    else
+    {
+        using var commandCrearProveedor = new SqlCommand(
+            @"
+            INSERT INTO [userchecklist].[PROVEEDOR]
+            (
+                nombre,
+                activo
+            )
+            OUTPUT INSERTED.id_proveedor
+            VALUES
+            (
+                @nombre,
+                1
+            );
+            ",
+            connection);
+
+        commandCrearProveedor.Parameters.AddWithValue(
+            "@nombre",
+            proveedor.Trim()
+        );
+
+        idProveedor = Convert.ToInt32(
+            await commandCrearProveedor.ExecuteScalarAsync()
+        );
+    }
+}
+    // ---------------------------------------------------------
+    // Obtener o crear operador
+    // ---------------------------------------------------------
+
+    int idOperador =
+        await ObtenerOCrearOperadorAsync(
+            operador
+        );
+
+    // ---------------------------------------------------------
+    // Guardar DATOS_RECEPCION
+    // ---------------------------------------------------------
+
+    const string consulta = @"
+        INSERT INTO [userchecklist].[DATOS_RECEPCION]
+        (
+            id_inspeccion,
+            id_area,
+            id_material,
+            id_proveedor,
+            id_operador,
+            lote,
+            turno,
+            diseno,
+            especificar_material,
+            tripulacion,
+            placas_numero,
+            orden_compra,
+            factura_remision,
+            alergeno_micro_sensitivo
+        )
+        VALUES
+        (
+            @idInspeccion,
+            @idArea,
+            @idMaterial,
+            @idProveedor,
+            @idOperador,
+            @lote,
+            @turno,
+            @diseno,
+            @especificarMaterial,
+            @tripulacion,
+            @placasNumero,
+            @ordenCompra,
+            @facturaRemision,
+            @alergenoMicroSensitivo
+        );
+    ";
+
+    using var command = new SqlCommand(
+        consulta,
+        connection
+    );
+
+    command.Parameters.AddWithValue(
+        "@idInspeccion",
+        idInspeccion
+    );
+
+    command.Parameters.AddWithValue(
+        "@idArea",
+        idArea
+    );
+
+    command.Parameters.AddWithValue(
+        "@idMaterial",
+        (object?)idMaterial ?? DBNull.Value
+    );
+
+    command.Parameters.AddWithValue(
+        "@idProveedor",
+        idProveedor
+    );
+
+    command.Parameters.AddWithValue(
+        "@idOperador",
+        idOperador
+    );
+
+    command.Parameters.AddWithValue(
+        "@lote",
+        (object?)lote ?? DBNull.Value
+    );
+
+    command.Parameters.AddWithValue(
+        "@turno",
+        (object?)turno ?? DBNull.Value
+    );
+
+    command.Parameters.AddWithValue(
+        "@diseno",
+        (object?)diseno ?? DBNull.Value
+    );
+
+    command.Parameters.AddWithValue(
+        "@especificarMaterial",
+        (object?)especificarMaterial ?? DBNull.Value
+    );
+
+    command.Parameters.AddWithValue(
+        "@tripulacion",
+        (object?)tripulacion ?? DBNull.Value
+    );
+
+    command.Parameters.AddWithValue(
+        "@placasNumero",
+        (object?)placasNumero ?? DBNull.Value
+    );
+
+    command.Parameters.AddWithValue(
+        "@ordenCompra",
+        (object?)ordenCompra ?? DBNull.Value
+    );
+
+    command.Parameters.AddWithValue(
+        "@facturaRemision",
+        (object?)facturaRemision ?? DBNull.Value
+    );
+
+    command.Parameters.AddWithValue(
+        "@alergenoMicroSensitivo",
+        (object?)alergenoMicroSensitivo ?? DBNull.Value
     );
 
     await command.ExecuteNonQueryAsync();

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using SIUO_API.Services;
 using FluentFTP;
+using System.Globalization;
 
 namespace SIUO_API.Controllers
 {
@@ -20,8 +21,28 @@ namespace SIUO_API.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> ProbarFTP()
+        public async Task<IActionResult> ProbarFTP(
+            [FromQuery] string delivery)
         {
+            // -------------------------------------------------
+            // VALIDAR DELIVERY
+            // -------------------------------------------------
+
+            if (string.IsNullOrWhiteSpace(delivery))
+            {
+                return BadRequest(new
+                {
+                    mensaje = "Debes indicar el delivery."
+                });
+            }
+
+            // Evitar caracteres/rutas no deseadas
+            delivery = Path.GetFileName(delivery);
+
+            // -------------------------------------------------
+            // CONFIGURACIÓN FTP
+            // -------------------------------------------------
+
             string servidor =
                 _configuration["FTP:Servidor"]
                 ?? throw new Exception(
@@ -45,6 +66,44 @@ namespace SIUO_API.Controllers
                     "FTP:Puerto"
                 );
 
+            // -------------------------------------------------
+            // FECHA AUTOMÁTICA
+            // -------------------------------------------------
+
+            DateTime fechaActual = DateTime.Now;
+
+            string anio =
+                fechaActual.ToString("yyyy");
+
+            string mes =
+                $"{fechaActual.Month}." +
+                fechaActual.ToString(
+                    "MMMM",
+                    new CultureInfo("es-MX")
+                ).ToUpper();
+
+            string dia =
+                fechaActual.ToString(
+                    "dd.MM.yyyy"
+                );
+
+            // -------------------------------------------------
+            // RUTAS DINÁMICAS
+            // -------------------------------------------------
+
+            string rutaDia =
+                $"/Pruebas/{anio}/{mes}/{dia}";
+
+            string rutaDelivery =
+                $"{rutaDia}/{delivery}";
+
+            string rutaEvidencias =
+                $"{rutaDelivery}/Evidencias";
+
+            // -------------------------------------------------
+            // CONEXIÓN FTP
+            // -------------------------------------------------
+
             using var cliente =
                 new AsyncFtpClient(
                     servidor,
@@ -55,34 +114,70 @@ namespace SIUO_API.Controllers
 
             await cliente.Connect();
 
+            // -------------------------------------------------
+            // LISTADOS
+            // -------------------------------------------------
+
             var contenidoRaiz =
                 await cliente.GetListing("/");
 
             var contenidoPruebas =
-                await cliente.GetListing("/Pruebas");
+                await cliente.GetListing(
+                    "/Pruebas"
+                );
 
             var contenidoPruebas2026 =
-                await cliente.GetListing("/Pruebas/2026");
-
-            var contenidoSeptiembre =
                 await cliente.GetListing(
-                    "/Pruebas/2026/9.SEPTIEMBRE"
+                    "/Pruebas/2026"
+                );
+
+            var contenidoMes =
+                await cliente.GetListing(
+                    $"/Pruebas/2026/{mes}"
                 );
 
             var contenidoDia =
                 await cliente.GetListing(
-                    "/Pruebas/2026/9.SEPTIEMBRE/24.09.2026"
+                    rutaDia
                 );
 
             var contenidoDelivery =
                 await cliente.GetListing(
-                    "/Pruebas/2026/9.SEPTIEMBRE/24.09.2026/202684692"
+                    rutaDelivery
+                );
+
+            var contenidoEvidencias =
+                await cliente.GetListing(
+                    rutaEvidencias
                 );
 
             await cliente.Disconnect();
 
+            // -------------------------------------------------
+            // RESPUESTA
+            // -------------------------------------------------
+
             return Ok(new
             {
+                FechaActual =
+                    fechaActual.ToString(
+                        "dd/MM/yyyy HH:mm:ss"
+                    ),
+
+                Anio = anio,
+
+                Mes = mes,
+
+                Dia = dia,
+
+                Delivery = delivery,
+
+                RutaDia = rutaDia,
+
+                RutaDelivery = rutaDelivery,
+
+                RutaEvidencias = rutaEvidencias,
+
                 Raiz = contenidoRaiz.Select(x => new
                 {
                     x.Name,
@@ -97,33 +192,45 @@ namespace SIUO_API.Controllers
                     x.Type
                 }),
 
-                Pruebas2026 = contenidoPruebas2026.Select(x => new
-                {
-                    x.Name,
-                    x.FullName,
-                    x.Type
-                }),
+                Pruebas2026 =
+                    contenidoPruebas2026.Select(x => new
+                    {
+                        x.Name,
+                        x.FullName,
+                        x.Type
+                    }),
 
-                Septiembre = contenidoSeptiembre.Select(x => new
-                {
-                    x.Name,
-                    x.FullName,
-                    x.Type
-                }),
+                MesFTP =
+                    contenidoMes.Select(x => new
+                    {
+                        x.Name,
+                        x.FullName,
+                        x.Type
+                    }),
 
-                Dia = contenidoDia.Select(x => new
-                {
-                    x.Name,
-                    x.FullName,
-                    x.Type
-                }),
+                DiaFTP =
+                    contenidoDia.Select(x => new
+                    {
+                        x.Name,
+                        x.FullName,
+                        x.Type
+                    }),
 
-                Delivery = contenidoDelivery.Select(x => new
-                {
-                    x.Name,
-                    x.FullName,
-                    x.Type
-                })
+                DeliveryFTP =
+                    contenidoDelivery.Select(x => new
+                    {
+                        x.Name,
+                        x.FullName,
+                        x.Type
+                    }),
+
+                EvidenciasFTP =
+                    contenidoEvidencias.Select(x => new
+                    {
+                        x.Name,
+                        x.FullName,
+                        x.Type
+                    })
             });
         }
     }

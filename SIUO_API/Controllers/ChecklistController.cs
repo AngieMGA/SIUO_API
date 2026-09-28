@@ -178,9 +178,439 @@ if (documento.RootElement.TryGetProperty(
         areaElemento.GetString();
 }
 
-// -----------------------------------------------------
+// =========================================================
+// GUARDAR DATOS DE RECEPCIÓN
+// CHECKLIST: SG-F-24-01
+// =========================================================
+
+if (
+    tipoChecklist?.Trim().Equals(
+        "SG-F-24-01",
+        StringComparison.OrdinalIgnoreCase
+    ) == true
+    && idInspeccion.HasValue
+)
+{
+    string? ObtenerTextoRecepcion(string nombrePropiedad)
+    {
+        if (
+            documento.RootElement.TryGetProperty(
+                nombrePropiedad,
+                out var elemento
+            )
+            && elemento.ValueKind == JsonValueKind.String
+        )
+        {
+            return elemento.GetString();
+        }
+
+        return null;
+    }
+
+    string? proveedor =
+        ObtenerTextoRecepcion("proveedor");
+
+    string? material =
+        ObtenerTextoRecepcion("material");
+
+    string? operador =
+        ObtenerTextoRecepcion("operador");
+
+    string? lote =
+        ObtenerTextoRecepcion("lote");
+
+    string? turno =
+        ObtenerTextoRecepcion("turno");
+
+    string? diseno =
+        ObtenerTextoRecepcion("diseno");
+
+    string? especificarMaterial =
+        ObtenerTextoRecepcion("materialEspecificado");
+
+    string? tripulacion =
+        ObtenerTextoRecepcion("tripulacion");
+
+    string? placasNumero =
+        ObtenerTextoRecepcion("placasNumero");
+
+    string? ordenCompra =
+        ObtenerTextoRecepcion("ordenCompra");
+
+    string? facturaRemision =
+        ObtenerTextoRecepcion("facturaRemision");
+
+    string? alergenoTexto =
+        ObtenerTextoRecepcion("alergeno");
+
+    bool? alergenoMicroSensitivo = null;
+
+    if (
+        !string.IsNullOrWhiteSpace(
+            alergenoTexto
+        )
+    )
+    {
+        if (
+            alergenoTexto.Equals(
+                "SI",
+                StringComparison.OrdinalIgnoreCase
+            )
+        )
+        {
+            alergenoMicroSensitivo = true;
+        }
+        else if (
+            alergenoTexto.Equals(
+                "NO",
+                StringComparison.OrdinalIgnoreCase
+            )
+        )
+        {
+            alergenoMicroSensitivo = false;
+        }
+    }
+
+    await _checklistRepository.GuardarDatosRecepcionAsync(
+        idInspeccion.Value,
+        areaMateriaPrima ?? "",
+        material,
+        proveedor ?? "",
+        operador ?? "",
+        lote,
+        turno,
+        diseno,
+        especificarMaterial,
+        tripulacion,
+        placasNumero,
+        ordenCompra,
+        facturaRemision,
+        alergenoMicroSensitivo
+    );
+
+    Console.WriteLine(
+        "Datos de recepción de SG-F-24-01 guardados en SQL."
+    );
+}
+
+// GUARDAR RESPUESTAS SG-F-24-01
+// ÁREA: Lata Vacía
+// =========================================================
+
+if (
+    tipoChecklist?.Trim().Equals(
+        "SG-F-24-01",
+        StringComparison.OrdinalIgnoreCase
+    ) == true
+    && idInspeccion.HasValue
+    && areaMateriaPrima?.Trim().Equals(
+        "Lata Vacía",
+        StringComparison.OrdinalIgnoreCase
+    ) == true
+)
+{
+    string? NormalizarRespuestaSGF2401(string? valor)
+    {
+        if (string.IsNullOrWhiteSpace(valor))
+        {
+            return null;
+        }
+
+        return valor.Trim().ToLowerInvariant() switch
+        {
+            "cumple" => "CUMPLE",
+            "nocumple" => "NO_CUMPLE",
+            "no_cumple" => "NO_CUMPLE",
+            "na" => "NA",
+            _ => null
+        };
+    }
+
+    var preguntasLataVacia = new[]
+    {
+        // =============================================
+        // CONDICIONES DEL TRANSPORTE
+        // =============================================
+        "TR-001",
+        "TR-002",
+        "TR-003",
+        "TR-004",
+        "TR-005",
+        "TR-006",
+        "TR-008",
+        "TR-011",
+
+        // =============================================
+        // CONDICIONES DEL MATERIAL
+        // =============================================
+        "MAT-002",
+        "MAT-003",
+        "MAT-004",
+        "MAT-005",
+        "MAT-006",
+        "MAT-009",
+        "MAT-010",
+        "MAT-012",
+        "MAT-013",
+
+        // =============================================
+        // CALIDAD DEL SERVICIO
+        // =============================================
+        "SER-001",
+        "SER-002",
+        "SER-003",
+        "SER-004"
+    };
+
+    foreach (string codigoPregunta in preguntasLataVacia)
+    {
+        if (
+            documento.RootElement.TryGetProperty(
+                codigoPregunta,
+                out var elementoRespuesta
+            )
+            && elementoRespuesta.ValueKind ==
+                JsonValueKind.String
+        )
+        {
+            string? valorReact =
+                elementoRespuesta.GetString();
+
+            string? valorSQL =
+                NormalizarRespuestaSGF2401(valorReact);
+
+            if (!string.IsNullOrWhiteSpace(valorSQL))
+            {
+                await _checklistRepository
+                    .GuardarRespuestaOpcionPorChecklistAsync(
+                        idInspeccion.Value,
+                        "SG-F-24-01",
+                        codigoPregunta,
+                        valorSQL,
+                        null
+                    );
+
+                Console.WriteLine(
+                    $"SG-F-24-01 | {codigoPregunta} = {valorSQL}"
+                );
+            }
+        }
+    }
+
+    Console.WriteLine(
+        "Respuestas SG-F-24-01 de Lata Vacía guardadas en SQL."
+    );
+}
+
+// =========================================================
+// GUARDAR RESPUESTAS SG-F-24-01
+// ÁREA: Cuarto Monster
+// =========================================================
+
+if (
+    tipoChecklist?.Trim().Equals(
+        "SG-F-24-01",
+        StringComparison.OrdinalIgnoreCase
+    ) == true
+    && idInspeccion.HasValue
+    && areaMateriaPrima?.Trim().Equals(
+        "Cuarto Monster",
+        StringComparison.OrdinalIgnoreCase
+    ) == true
+)
+{
+    // ---------------------------------------------------------
+    // Obtener material
+    // ---------------------------------------------------------
+
+    string? materialCuarto = null;
+
+    if (
+        documento.RootElement.TryGetProperty(
+            "material",
+            out var materialElemento
+        )
+        && materialElemento.ValueKind == JsonValueKind.String
+    )
+    {
+        materialCuarto = materialElemento.GetString();
+    }
+
+    // ---------------------------------------------------------
+    // Normalizar respuesta
+    // ---------------------------------------------------------
+
+    string? NormalizarRespuestaSGF2401Cuarto(string? valor)
+    {
+        if (string.IsNullOrWhiteSpace(valor))
+        {
+            return null;
+        }
+
+        return valor.Trim().ToLowerInvariant() switch
+        {
+            "cumple" => "CUMPLE",
+            "nocumple" => "NO_CUMPLE",
+            "no_cumple" => "NO_CUMPLE",
+            "na" => "NA",
+            _ => null
+        };
+    }
+
+    // ---------------------------------------------------------
+    // Preguntas de Cuarto Monster
+    // ---------------------------------------------------------
+
+    var preguntasCuartoMonster = new List<string>();
+
+    // =========================================================
+    // CONDICIONES DEL TRANSPORTE
+    // =========================================================
+
+    preguntasCuartoMonster.AddRange(
+        new[]
+        {
+            "TR-001",
+            "TR-002",
+            "TR-003",
+            "TR-004",
+            "TR-005",
+            "TR-006",
+            "TR-007",
+            "TR-008",
+            "TR-011"
+        }
+    );
+
+    // =========================================================
+    // CONDICIONES DEL MATERIAL
+    // =========================================================
+
+    preguntasCuartoMonster.AddRange(
+        new[]
+        {
+            "MAT-001",
+            "MAT-002",
+            "MAT-003",
+            "MAT-004",
+            "MAT-005",
+            "MAT-006",
+            "MAT-007",
+            "MAT-008",
+            "MAT-009",
+            "MAT-010",
+            "MAT-012",
+            "MAT-013"
+        }
+    );
+
+    // =========================================================
+    // CALIDAD DEL SERVICIO
+    // =========================================================
+
+    preguntasCuartoMonster.AddRange(
+        new[]
+        {
+            "SER-001",
+            "SER-002",
+            "SER-003",
+            "SER-004"
+        }
+    );
+
+    // =========================================================
+    // SACO
+    // SOLO PARA AZÚCAR
+    // =========================================================
+
+    bool esAzucar =
+        materialCuarto?.Trim().Equals(
+            "Azúcar",
+            StringComparison.OrdinalIgnoreCase
+        ) == true;
+
+    bool esFructosa =
+        materialCuarto?.Trim().Equals(
+            "Fructosa 55",
+            StringComparison.OrdinalIgnoreCase
+        ) == true;
+
+    if (esAzucar)
+    {
+        preguntasCuartoMonster.AddRange(
+            new[]
+            {
+                "SAC-001",
+                "SAC-002",
+                "SAC-003",
+                "SAC-004",
+                "SAC-005",
+                "SAC-006",
+                "SAC-007"
+            }
+        );
+    }
+
+    // ---------------------------------------------------------
+    // Validar material
+    // ---------------------------------------------------------
+
+    if (!esAzucar && !esFructosa)
+    {
+        Console.WriteLine(
+            $"Material de Cuarto Monster no reconocido: [{materialCuarto}]"
+        );
+    }
+    else
+    {
+        // -----------------------------------------------------
+        // Guardar respuestas
+        // -----------------------------------------------------
+
+        foreach (string codigoPregunta in preguntasCuartoMonster)
+        {
+            if (
+                documento.RootElement.TryGetProperty(
+                    codigoPregunta,
+                    out var elementoRespuesta
+                )
+                && elementoRespuesta.ValueKind ==
+                    JsonValueKind.String
+            )
+            {
+                string? valorReact =
+                    elementoRespuesta.GetString();
+
+                string? valorSQL =
+                    NormalizarRespuestaSGF2401Cuarto(
+                        valorReact
+                    );
+
+                if (!string.IsNullOrWhiteSpace(valorSQL))
+                {
+                    await _checklistRepository
+                        .GuardarRespuestaOpcionPorChecklistAsync(
+                            idInspeccion.Value,
+                            "SG-F-24-01",
+                            codigoPregunta,
+                            valorSQL,
+                            null
+                        );
+
+                    Console.WriteLine(
+                        $"SG-F-24-01 | Cuarto Monster | {materialCuarto} | {codigoPregunta} = {valorSQL}"
+                    );
+                }
+            }
+        }
+
+        Console.WriteLine(
+            $"Respuestas SG-F-24-01 de Cuarto Monster ({materialCuarto}) guardadas en SQL."
+        );
+    }
+}
+
 // Determinar carpeta según el TIPO DE CHECKLIST
-// -----------------------------------------------------
 
 string carpetaChecklist;
 
@@ -223,7 +653,7 @@ Console.WriteLine("========================================");
 
 if (
     tipoChecklist?.Trim().Equals(
-        "CHK-TRANSPORTE",
+        "SG-F-24-33",
         StringComparison.OrdinalIgnoreCase
     ) == true
     && idInspeccion.HasValue
