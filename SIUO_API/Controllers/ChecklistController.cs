@@ -91,32 +91,87 @@ if (!string.IsNullOrWhiteSpace(tipoChecklist))
     try
     {
         string? observacionesGenerales = null;
-        string? nombreRecibe = null;
-        string? nombreSupervisor = null;
+string? nombreRecibe = null;
+string? nombreSupervisor = null;
 
-        if (documento.RootElement.TryGetProperty(
-            "comentarios2433",
-            out var comentariosElemento))
-        {
-            observacionesGenerales =
-                comentariosElemento.GetString();
-        }
+// =========================================================
+// CAMPOS GENERALES SG-F-24-01
+// =========================================================
 
-        if (documento.RootElement.TryGetProperty(
-            "nombreRecibe2433",
-            out var recibeElemento))
-        {
-            nombreRecibe =
-                recibeElemento.GetString();
-        }
+if (documento.RootElement.TryGetProperty(
+    "observacionesSGF2401",
+    out var observaciones2401Elemento)
+    && observaciones2401Elemento.ValueKind == JsonValueKind.String)
+{
+    observacionesGenerales =
+        observaciones2401Elemento.GetString();
+}
 
-        if (documento.RootElement.TryGetProperty(
-            "nombreSupervisor2433",
-            out var supervisorElemento))
-        {
-            nombreSupervisor =
-                supervisorElemento.GetString();
-        }
+// =========================================================
+// CAMPOS GENERALES SG-F-24-33
+// =========================================================
+
+if (string.IsNullOrWhiteSpace(observacionesGenerales))
+{
+    if (documento.RootElement.TryGetProperty(
+        "comentarios2433",
+        out var comentariosElemento)
+        && comentariosElemento.ValueKind == JsonValueKind.String)
+    {
+        observacionesGenerales =
+            comentariosElemento.GetString();
+    }
+}
+
+// =========================================================
+// NOMBRE DE QUIEN RECIBE
+// =========================================================
+
+if (documento.RootElement.TryGetProperty(
+    "nombreRecibe",
+    out var recibe2401Elemento)
+    && recibe2401Elemento.ValueKind == JsonValueKind.String)
+{
+    nombreRecibe =
+        recibe2401Elemento.GetString();
+}
+
+if (string.IsNullOrWhiteSpace(nombreRecibe))
+{
+    if (documento.RootElement.TryGetProperty(
+        "nombreRecibe2433",
+        out var recibe2433Elemento)
+        && recibe2433Elemento.ValueKind == JsonValueKind.String)
+    {
+        nombreRecibe =
+            recibe2433Elemento.GetString();
+    }
+}
+
+// =========================================================
+// NOMBRE DEL SUPERVISOR
+// =========================================================
+
+if (documento.RootElement.TryGetProperty(
+    "nombreSupervisor",
+    out var supervisor2401Elemento)
+    && supervisor2401Elemento.ValueKind == JsonValueKind.String)
+{
+    nombreSupervisor =
+        supervisor2401Elemento.GetString();
+}
+
+if (string.IsNullOrWhiteSpace(nombreSupervisor))
+{
+    if (documento.RootElement.TryGetProperty(
+        "nombreSupervisor2433",
+        out var supervisor2433Elemento)
+        && supervisor2433Elemento.ValueKind == JsonValueKind.String)
+    {
+        nombreSupervisor =
+            supervisor2433Elemento.GetString();
+    }
+}
 
         DateTime fechaInspeccion = DateTime.Now.Date;
         TimeSpan horaInspeccion = DateTime.Now.TimeOfDay;
@@ -132,7 +187,22 @@ if (!string.IsNullOrWhiteSpace(tipoChecklist))
             fechaInspeccion = fechaParseada.Date;
         }
 
-        string status = "PENDIENTE";
+        string? status = null;
+
+if (
+    tipoChecklist.Equals(
+        "CHK-TRANSPORTE",
+        StringComparison.OrdinalIgnoreCase
+    )
+    ||
+    tipoChecklist.Equals(
+        "RH-F-01-21",
+        StringComparison.OrdinalIgnoreCase
+    )
+)
+{
+    status = "PENDIENTE";
+}
 
         idInspeccion =
             await _checklistRepository.GuardarInspeccionAsync(
@@ -178,10 +248,9 @@ if (documento.RootElement.TryGetProperty(
         areaElemento.GetString();
 }
 
-// =========================================================
+
 // GUARDAR DATOS DE RECEPCIÓN
 // CHECKLIST: SG-F-24-01
-// =========================================================
 
 if (
     tipoChecklist?.Trim().Equals(
@@ -404,7 +473,7 @@ if (
 
 // =========================================================
 // GUARDAR RESPUESTAS SG-F-24-01
-// ÁREA: Cuarto Monster
+// ÁREA: Materias Primas
 // =========================================================
 
 if (
@@ -414,7 +483,7 @@ if (
     ) == true
     && idInspeccion.HasValue
     && areaMateriaPrima?.Trim().Equals(
-        "Cuarto Monster",
+        "Materias Primas",
         StringComparison.OrdinalIgnoreCase
     ) == true
 )
@@ -423,7 +492,7 @@ if (
     // Obtener material
     // ---------------------------------------------------------
 
-    string? materialCuarto = null;
+    string? material = null;
 
     if (
         documento.RootElement.TryGetProperty(
@@ -433,14 +502,14 @@ if (
         && materialElemento.ValueKind == JsonValueKind.String
     )
     {
-        materialCuarto = materialElemento.GetString();
+        material = materialElemento.GetString();
     }
 
     // ---------------------------------------------------------
     // Normalizar respuesta
     // ---------------------------------------------------------
 
-    string? NormalizarRespuestaSGF2401Cuarto(string? valor)
+    string? NormalizarRespuestaSGF2401(string? valor)
     {
         if (string.IsNullOrWhiteSpace(valor))
         {
@@ -458,88 +527,223 @@ if (
     }
 
     // ---------------------------------------------------------
-    // Preguntas de Cuarto Monster
+    // Material seleccionado
     // ---------------------------------------------------------
 
-    var preguntasCuartoMonster = new List<string>();
-
-    // =========================================================
-    // CONDICIONES DEL TRANSPORTE
-    // =========================================================
-
-    preguntasCuartoMonster.AddRange(
-        new[]
-        {
-            "TR-001",
-            "TR-002",
-            "TR-003",
-            "TR-004",
-            "TR-005",
-            "TR-006",
-            "TR-007",
-            "TR-008",
-            "TR-011"
-        }
-    );
-
-    // =========================================================
-    // CONDICIONES DEL MATERIAL
-    // =========================================================
-
-    preguntasCuartoMonster.AddRange(
-        new[]
-        {
-            "MAT-001",
-            "MAT-002",
-            "MAT-003",
-            "MAT-004",
-            "MAT-005",
-            "MAT-006",
-            "MAT-007",
-            "MAT-008",
-            "MAT-009",
-            "MAT-010",
-            "MAT-012",
-            "MAT-013"
-        }
-    );
-
-    // =========================================================
-    // CALIDAD DEL SERVICIO
-    // =========================================================
-
-    preguntasCuartoMonster.AddRange(
-        new[]
-        {
-            "SER-001",
-            "SER-002",
-            "SER-003",
-            "SER-004"
-        }
-    );
-
-    // =========================================================
-    // SACO
-    // SOLO PARA AZÚCAR
-    // =========================================================
+    var preguntasMateriasPrimas = new List<string>();
 
     bool esAzucar =
-        materialCuarto?.Trim().Equals(
+        material?.Trim().Equals(
             "Azúcar",
             StringComparison.OrdinalIgnoreCase
         ) == true;
 
     bool esFructosa =
-        materialCuarto?.Trim().Equals(
+        material?.Trim().Equals(
             "Fructosa 55",
             StringComparison.OrdinalIgnoreCase
         ) == true;
 
+    bool esConcentrado =
+        material?.Trim().Equals(
+            "Concentrado",
+            StringComparison.OrdinalIgnoreCase
+        ) == true;
+
+    bool esOtro =
+        material?.Trim().Equals(
+            "Otro",
+            StringComparison.OrdinalIgnoreCase
+        ) == true;
+
+    // =========================================================
+    // AZÚCAR
+    // =========================================================
+
     if (esAzucar)
     {
-        preguntasCuartoMonster.AddRange(
+        preguntasMateriasPrimas.AddRange(
             new[]
             {
+                // TRANSPORTE
+                "TR-001",
+                "TR-002",
+                "TR-003",
+                "TR-004",
+                "TR-005",
+                "TR-006",
+                "TR-008",
+                "TR-010",
+                "TR-011",
+
+                // MATERIAL
+                "MAT-001",
+                "MAT-002",
+                "MAT-003",
+                "MAT-004",
+                "MAT-005",
+                "MAT-006",
+                "MAT-007",
+                "MAT-008",
+                "MAT-009",
+                "MAT-010",
+                "MAT-012",
+                "MAT-013",
+
+                // SERVICIO
+                "SER-001",
+                "SER-002",
+                "SER-003",
+                "SER-004",
+
+                // SACO
+                "SAC-001",
+                "SAC-002",
+                "SAC-003",
+                "SAC-004",
+                "SAC-005",
+                "SAC-006",
+                "SAC-007"
+            }
+        );
+    }
+
+    // =========================================================
+    // FRUCTOSA 55
+    // =========================================================
+
+    else if (esFructosa)
+    {
+        preguntasMateriasPrimas.AddRange(
+            new[]
+            {
+                // TRANSPORTE
+                "TR-001",
+                "TR-002",
+                "TR-003",
+                "TR-004",
+                "TR-005",
+                "TR-006",
+                "TR-008",
+                "TR-010",
+                "TR-011",
+
+                // MATERIAL
+                "MAT-001",
+                "MAT-002",
+                "MAT-003",
+                "MAT-004",
+                "MAT-005",
+                "MAT-006",
+                "MAT-008",
+                "MAT-009",
+                "MAT-010",
+                "MAT-011",
+                "MAT-012",
+                "MAT-013",
+
+                // SERVICIO
+                "SER-001",
+                "SER-002",
+                "SER-003",
+                "SER-004"
+            }
+        );
+    }
+
+    // =========================================================
+    // CONCENTRADO
+    // =========================================================
+
+    else if (esConcentrado)
+    {
+        preguntasMateriasPrimas.AddRange(
+            new[]
+            {
+                // TRANSPORTE
+                "TR-001",
+                "TR-002",
+                "TR-003",
+                "TR-004",
+                "TR-005",
+                "TR-006",
+                "TR-008",
+                "TR-009",
+                "TR-010",
+                "TR-011",
+
+                // MATERIAL
+                "MAT-002",
+                "MAT-003",
+                "MAT-004",
+                "MAT-005",
+                "MAT-006",
+                "MAT-008",
+                "MAT-009",
+                "MAT-010",
+                "MAT-011",
+                "MAT-012",
+                "MAT-013",
+
+                // SERVICIO
+                "SER-001",
+                "SER-002",
+                "SER-003",
+                "SER-004"
+            }
+        );
+    }
+
+    // =========================================================
+    // OTRO
+    // =========================================================
+
+    else if (esOtro)
+    {
+        preguntasMateriasPrimas.AddRange(
+            new[]
+            {
+                // TRANSPORTE
+                "TR-001",
+                "TR-002",
+                "TR-003",
+                "TR-004",
+                "TR-005",
+                "TR-006",
+                "TR-007",
+                "TR-008",
+                "TR-009",
+                "TR-010",
+                "TR-011",
+
+                // MATERIAL
+                "MAT-001",
+                "MAT-002",
+                "MAT-003",
+                "MAT-004",
+                "MAT-005",
+                "MAT-006",
+                "MAT-007",
+                "MAT-008",
+                "MAT-009",
+                "MAT-010",
+                "MAT-011",
+                "MAT-012",
+                "MAT-013",
+
+                // TARIMAS
+                "TAR-001",
+                "TAR-002",
+                "TAR-003",
+                "TAR-004",
+
+                // SERVICIO
+                "SER-001",
+                "SER-002",
+                "SER-003",
+                "SER-004",
+
+                // SACO
                 "SAC-001",
                 "SAC-002",
                 "SAC-003",
@@ -555,10 +759,10 @@ if (
     // Validar material
     // ---------------------------------------------------------
 
-    if (!esAzucar && !esFructosa)
+    if (preguntasMateriasPrimas.Count == 0)
     {
         Console.WriteLine(
-            $"Material de Cuarto Monster no reconocido: [{materialCuarto}]"
+            $"Material de Materias Primas no reconocido: [{material}]"
         );
     }
     else
@@ -567,7 +771,7 @@ if (
         // Guardar respuestas
         // -----------------------------------------------------
 
-        foreach (string codigoPregunta in preguntasCuartoMonster)
+        foreach (string codigoPregunta in preguntasMateriasPrimas)
         {
             if (
                 documento.RootElement.TryGetProperty(
@@ -582,32 +786,794 @@ if (
                     elementoRespuesta.GetString();
 
                 string? valorSQL =
-                    NormalizarRespuestaSGF2401Cuarto(
+                    NormalizarRespuestaSGF2401(
                         valorReact
                     );
 
                 if (!string.IsNullOrWhiteSpace(valorSQL))
                 {
+                    string? observaciones = null;
+
+                    // -------------------------------------------------
+                    // Temperatura de Concentrado - TR-009
+                    // -------------------------------------------------
+
+                    if (
+                        codigoPregunta == "TR-009"
+                        && esConcentrado
+                        && documento.RootElement.TryGetProperty(
+                            "temperaturaConcentrado",
+                            out var temperaturaElemento
+                        )
+                        && temperaturaElemento.ValueKind ==
+                            JsonValueKind.String
+                    )
+                    {
+                        string? temperatura =
+                            temperaturaElemento.GetString();
+
+                        if (!string.IsNullOrWhiteSpace(temperatura))
+                        {
+                            observaciones =
+                                $"Temperatura: {temperatura} °C";
+                        }
+                    }
+
+                    // -------------------------------------------------
+                    // Número de sello - TR-011
+                    // -------------------------------------------------
+
+                    if (
+                        codigoPregunta == "TR-011"
+                        && documento.RootElement.TryGetProperty(
+                            "numeroSello",
+                            out var selloElemento
+                        )
+                        && selloElemento.ValueKind ==
+                            JsonValueKind.String
+                    )
+                    {
+                        string? numeroSello =
+                            selloElemento.GetString();
+
+                        if (!string.IsNullOrWhiteSpace(numeroSello))
+                        {
+                            observaciones =
+                                $"Número de sello: {numeroSello}";
+                        }
+                    }
+
                     await _checklistRepository
                         .GuardarRespuestaOpcionPorChecklistAsync(
                             idInspeccion.Value,
                             "SG-F-24-01",
                             codigoPregunta,
                             valorSQL,
-                            null
+                            observaciones
                         );
 
                     Console.WriteLine(
-                        $"SG-F-24-01 | Cuarto Monster | {materialCuarto} | {codigoPregunta} = {valorSQL}"
+                        $"SG-F-24-01 | Materias Primas | {material} | " +
+                        $"{codigoPregunta} = {valorSQL}" +
+                        (
+                            string.IsNullOrWhiteSpace(observaciones)
+                                ? ""
+                                : $" | {observaciones}"
+                        )
                     );
                 }
             }
         }
 
         Console.WriteLine(
-            $"Respuestas SG-F-24-01 de Cuarto Monster ({materialCuarto}) guardadas en SQL."
+            $"Respuestas SG-F-24-01 de Materias Primas ({material}) guardadas en SQL."
         );
     }
+}
+
+// =========================================================
+// GUARDAR DATOS ESPECIALES SG-F-24-01
+// PESAJE + MERMA + SUPERSACO
+// =========================================================
+
+if (
+    tipoChecklist?.Trim().Equals(
+        "SG-F-24-01",
+        StringComparison.OrdinalIgnoreCase
+    ) == true
+    && idInspeccion.HasValue
+    && areaMateriaPrima?.Trim().Equals(
+        "Materias Primas",
+        StringComparison.OrdinalIgnoreCase
+    ) == true
+)
+{
+    // ---------------------------------------------------------
+    // Obtener material
+    // ---------------------------------------------------------
+
+    string? material = null;
+
+    if (
+        documento.RootElement.TryGetProperty(
+            "material",
+            out var materialElemento
+        )
+        && materialElemento.ValueKind == JsonValueKind.String
+    )
+    {
+        material = materialElemento.GetString();
+    }
+
+    bool esAzucar =
+        material?.Trim().Equals(
+            "Azúcar",
+            StringComparison.OrdinalIgnoreCase
+        ) == true;
+
+    bool esConcentrado =
+        material?.Trim().Equals(
+            "Concentrado",
+            StringComparison.OrdinalIgnoreCase
+        ) == true;
+
+    bool esOtro =
+        material?.Trim().Equals(
+            "Otro",
+            StringComparison.OrdinalIgnoreCase
+        ) == true;
+
+    // ---------------------------------------------------------
+    // Función para obtener texto
+    // ---------------------------------------------------------
+
+    string? ObtenerTextoEspecial(string nombrePropiedad)
+    {
+        if (
+            documento.RootElement.TryGetProperty(
+                nombrePropiedad,
+                out var elemento
+            )
+            && elemento.ValueKind == JsonValueKind.String
+        )
+        {
+            return elemento.GetString();
+        }
+
+        return null;
+    }
+
+    // ---------------------------------------------------------
+    // Función para obtener decimal
+    // ---------------------------------------------------------
+
+    decimal? ObtenerDecimalEspecial(string nombrePropiedad)
+    {
+        string? texto =
+            ObtenerTextoEspecial(nombrePropiedad);
+
+        if (
+            string.IsNullOrWhiteSpace(texto)
+        )
+        {
+            return null;
+        }
+
+        if (
+            decimal.TryParse(
+                texto,
+                out decimal valor
+            )
+        )
+        {
+            return valor;
+        }
+
+        Console.WriteLine(
+            $"No se pudo convertir a decimal: {nombrePropiedad} = [{texto}]"
+        );
+
+        return null;
+    }
+
+    // =========================================================
+    // PESAJE
+    // Se utiliza para Azúcar y Otro
+    // =========================================================
+
+    if (
+        esAzucar
+        || esOtro
+    )
+    {
+        decimal? pesoInicial =
+            ObtenerDecimalEspecial("pesoInicial");
+
+        decimal? pesoFinal =
+            ObtenerDecimalEspecial("pesoFinal");
+
+        decimal? tara =
+            ObtenerDecimalEspecial("tara");
+
+        string? numeroCodigo =
+            ObtenerTextoEspecial("numeroCodigo");
+
+        decimal? tq1Inicial =
+            ObtenerDecimalEspecial("tq1Inicial");
+
+        decimal? tq1Final =
+            ObtenerDecimalEspecial("tq1Final");
+
+        decimal? psiTq1Inicial =
+            ObtenerDecimalEspecial("psiTq1Inicial");
+
+        decimal? psiTq1Final =
+            ObtenerDecimalEspecial("psiTq1Final");
+
+        decimal? tq2Inicial =
+            ObtenerDecimalEspecial("tq2Inicial");
+
+        decimal? tq2Final =
+            ObtenerDecimalEspecial("tq2Final");
+
+        decimal? psiTq2Inicial =
+            ObtenerDecimalEspecial("psiTq2Inicial");
+
+        decimal? psiTq2Final =
+            ObtenerDecimalEspecial("psiTq2Final");
+
+        // Guardar solamente si existe algún dato de pesaje
+        if (
+            pesoInicial.HasValue
+            || pesoFinal.HasValue
+            || tara.HasValue
+            || !string.IsNullOrWhiteSpace(numeroCodigo)
+            || tq1Inicial.HasValue
+            || tq1Final.HasValue
+            || psiTq1Inicial.HasValue
+            || psiTq1Final.HasValue
+            || tq2Inicial.HasValue
+            || tq2Final.HasValue
+            || psiTq2Inicial.HasValue
+            || psiTq2Final.HasValue
+        )
+        {
+            await _checklistRepository
+                .GuardarPesajeSGF2401Async(
+                    idInspeccion.Value,
+                    pesoInicial,
+                    pesoFinal,
+                    tara,
+                    numeroCodigo,
+                    tq1Inicial,
+                    tq1Final,
+                    psiTq1Inicial,
+                    psiTq1Final,
+                    tq2Inicial,
+                    tq2Final,
+                    psiTq2Inicial,
+                    psiTq2Final
+                );
+
+            Console.WriteLine(
+                $"Pesaje SG-F-24-01 guardado. ID inspección: {idInspeccion.Value}"
+            );
+        }
+    }
+
+    // =========================================================
+    // MERMA
+    // Azúcar + Concentrado + Otro
+    // =========================================================
+
+    if (
+        esAzucar
+        || esConcentrado
+        || esOtro
+    )
+    {
+        string[] camposSacos =
+        {
+            "saco1Kg",
+            "saco2Kg",
+            "saco3Kg",
+            "saco4Kg",
+            "saco5Kg",
+            "saco6Kg",
+            "saco7Kg",
+            "saco8Kg"
+        };
+
+        for (
+            int i = 0;
+            i < camposSacos.Length;
+            i++
+        )
+        {
+            decimal? pesoSaco =
+                ObtenerDecimalEspecial(
+                    camposSacos[i]
+                );
+
+            if (pesoSaco.HasValue)
+            {
+                await _checklistRepository
+                    .GuardarMermaSGF2401Async(
+                        idInspeccion.Value,
+                        i + 1,
+                        pesoSaco.Value
+                    );
+
+                Console.WriteLine(
+                    $"Merma SG-F-24-01 | Saco {i + 1} = {pesoSaco.Value}"
+                );
+            }
+        }
+
+        // -----------------------------------------------------
+        // Resumen de merma
+        // -----------------------------------------------------
+
+        decimal? totalKg =
+            ObtenerDecimalEspecial("totalKg");
+
+        decimal? promedioKg =
+            ObtenerDecimalEspecial("promedioKg");
+
+        decimal? diferenciaKg =
+            ObtenerDecimalEspecial("diferenciaKg");
+
+        decimal? mermaKg =
+            ObtenerDecimalEspecial("mermaKg");
+
+        if (
+            totalKg.HasValue
+            || promedioKg.HasValue
+            || diferenciaKg.HasValue
+            || mermaKg.HasValue
+        )
+        {
+            await _checklistRepository
+                .GuardarResumenMermaSGF2401Async(
+                    idInspeccion.Value,
+                    totalKg,
+                    promedioKg,
+                    diferenciaKg,
+                    mermaKg
+                );
+
+            Console.WriteLine(
+                $"Resumen de merma SG-F-24-01 guardado. ID inspección: {idInspeccion.Value}"
+            );
+        }
+    }
+
+    // =========================================================
+    // ESTADO DE SUPERSACOS
+    // Azúcar + Concentrado + Otro
+    // =========================================================
+
+    if (
+        esAzucar
+        || esConcentrado
+        || esOtro
+    )
+    {
+        string[] camposSupersaco =
+        {
+            "supersaco1",
+            "supersaco2",
+            "supersaco3",
+            "supersaco4",
+            "supersaco5",
+            "supersaco6",
+            "supersaco7",
+            "supersaco8",
+            "supersaco9"
+        };
+
+        for (
+            int i = 0;
+            i < camposSupersaco.Length;
+            i++
+        )
+        {
+            string? estado =
+                ObtenerTextoEspecial(
+                    camposSupersaco[i]
+                );
+
+            if (!string.IsNullOrWhiteSpace(estado))
+            {
+                await _checklistRepository
+                    .GuardarEstadoSupersacoSGF2401Async(
+                        idInspeccion.Value,
+                        "ESTADO_SUPERSACO",
+                        i + 1,
+                        estado
+                    );
+
+                Console.WriteLine(
+                    $"Supersaco {i + 1} = {estado}"
+                );
+            }
+        }
+    }
+}
+
+// =========================================================
+// GUARDAR RH-F-01-21
+// DATOS GENERALES + OPERADOR + TRANSPORTE + RESPUESTAS
+// =========================================================
+
+if (
+    tipoChecklist?.Trim().Equals(
+        "RH-F-01-21",
+        StringComparison.OrdinalIgnoreCase
+    ) == true
+    && idInspeccion.HasValue
+)
+{
+    // -----------------------------------------------------
+    // FUNCIÓN PARA OBTENER TEXTO
+    // -----------------------------------------------------
+
+    string? ObtenerTextoRH(string nombrePropiedad)
+    {
+        if (
+            documento.RootElement.TryGetProperty(
+                nombrePropiedad,
+                out var elemento
+            )
+            && elemento.ValueKind == JsonValueKind.String
+        )
+        {
+            return elemento.GetString();
+        }
+
+        return null;
+    }
+
+    // =====================================================
+    // DATOS DEL OPERADOR
+    // =====================================================
+
+    string? nombreOperadorRH =
+        ObtenerTextoRH("nombreOperadorRHF");
+
+    string? telefonoOperador =
+        ObtenerTextoRH("telefonoOperador");
+
+    string? presentacionOperador =
+        ObtenerTextoRH("presentacionOperador");
+
+    string? numeroLicencia =
+        ObtenerTextoRH("numeroLicencia");
+
+    string? numeroTarjeta =
+        ObtenerTextoRH("numeroTarjeta");
+
+    string? numeroIMSS =
+        ObtenerTextoRH("numeroIMSS");
+
+    string? numeroSeguro =
+        ObtenerTextoRH("numeroSeguro");
+
+    string? numeroCartaPorte =
+        ObtenerTextoRH("numeroCartaPorte");
+
+    string? observacionesEPP =
+        ObtenerTextoRH("observacionesEPP");
+
+    if (string.IsNullOrWhiteSpace(nombreOperadorRH))
+    {
+        throw new InvalidOperationException(
+            "RH-F-01-21 requiere el nombre del operador."
+        );
+    }
+
+    int idOperadorRH =
+        await _checklistRepository.ObtenerOCrearOperadorAsync(
+            nombreOperadorRH
+        );
+
+    await _checklistRepository.GuardarDatosOperadorRHF0121Async(
+        idInspeccion.Value,
+        idOperadorRH,
+        presentacionOperador,
+        observacionesEPP,
+        telefonoOperador,
+        numeroLicencia,
+        numeroTarjeta,
+        numeroIMSS,
+        numeroSeguro,
+        numeroCartaPorte
+    );
+
+    await _checklistRepository.RelacionarOperadorConInspeccionAsync(
+        idInspeccion.Value,
+        idOperadorRH
+    );
+
+    Console.WriteLine(
+        $"RH-F-01-21 | Operador guardado. ID operador: {idOperadorRH}"
+    );
+
+    // =====================================================
+    // DATOS GENERALES DEL TRANSPORTE
+    // =====================================================
+
+    string? lineaTransporte =
+        ObtenerTextoRH("lineaTransporteRHF");
+
+    string? numeroTractor =
+        ObtenerTextoRH("numeroTractor");
+
+    string? numeroRemolque1 =
+        ObtenerTextoRH("numeroRemolque1");
+
+    string? numeroRemolque2 =
+        ObtenerTextoRH("numeroRemolque2");
+
+    string? placasTractor =
+        ObtenerTextoRH("placasTractor");
+
+    string? placasRemolque1 =
+        ObtenerTextoRH("placasRemolque1");
+
+    string? placasRemolque2 =
+        ObtenerTextoRH("placasRemolque2");
+
+    if (string.IsNullOrWhiteSpace(lineaTransporte))
+    {
+        throw new InvalidOperationException(
+            "RH-F-01-21 requiere la línea de transporte."
+        );
+    }
+
+    int idTransporteRH =
+        await _checklistRepository.ObtenerOCrearTransporteRHF0121Async(
+            lineaTransporte,
+            numeroTractor,
+            numeroRemolque1,
+            numeroRemolque2,
+            placasTractor,
+            placasRemolque1,
+            placasRemolque2
+        );
+
+    Console.WriteLine(
+        $"RH-F-01-21 | Transporte guardado. ID transporte: {idTransporteRH}"
+    );
+
+    // =====================================================
+    // DATOS ESPECÍFICOS DE RH
+    // =====================================================
+
+    string? origenDescarga =
+        ObtenerTextoRH("origenDescarga");
+
+    string? destinoCarga =
+        ObtenerTextoRH("destinoCarga");
+
+    string? numeroSellos =
+        ObtenerTextoRH("numeroSellos");
+
+    string? numeroDelivery =
+        ObtenerTextoRH("numeroDelivery");
+
+    string? tipoTransporte =
+        ObtenerTextoRH("tipoTransporte");
+
+    // En RH, "Configuración" corresponde a tipo_unidad
+    string? tipoUnidad =
+        ObtenerTextoRH("configuracion");
+
+    string? nivelTanque1 =
+        ObtenerTextoRH("tanque1");
+
+    string? nivelTanque2 =
+        ObtenerTextoRH("tanque2");
+
+    string? refrigerado =
+        ObtenerTextoRH("refrigerado");
+
+    string? temperaturaTexto =
+        ObtenerTextoRH("temperatura");
+
+    decimal? temperatura = null;
+
+    if (
+        !string.IsNullOrWhiteSpace(temperaturaTexto)
+        && decimal.TryParse(
+            temperaturaTexto,
+            out decimal temperaturaParseada
+        )
+    )
+    {
+        temperatura = temperaturaParseada;
+    }
+
+    // =====================================================
+    // FECHAS / HORAS
+    // =====================================================
+
+    DateTime? fechaHoraLlegada = null;
+
+    string? fechaHoraLlegadaTexto =
+        ObtenerTextoRH("fechaHoraLlegada");
+
+    if (
+        !string.IsNullOrWhiteSpace(fechaHoraLlegadaTexto)
+        && DateTime.TryParse(
+            fechaHoraLlegadaTexto,
+            out DateTime llegadaParseada
+        )
+    )
+    {
+        fechaHoraLlegada = llegadaParseada;
+    }
+
+    DateTime? fechaHoraSalida = null;
+
+    string? fechaHoraSalidaTexto =
+        ObtenerTextoRH("fechaHoraSalida");
+
+    if (
+        !string.IsNullOrWhiteSpace(fechaHoraSalidaTexto)
+        && DateTime.TryParse(
+            fechaHoraSalidaTexto,
+            out DateTime salidaParseada
+        )
+    )
+    {
+        fechaHoraSalida = salidaParseada;
+    }
+
+    // =====================================================
+    // RESULTADO
+    // =====================================================
+
+    string? resultadoFinal =
+        ObtenerTextoRH("resultadoFinal");
+
+    string? rampaAsignada =
+        ObtenerTextoRH("rampaAsignada");
+
+    string? comentarios =
+        ObtenerTextoRH("comentarios");
+
+    // =====================================================
+    // GUARDAR DATOS_TRANSPORTE_RH
+    // =====================================================
+
+    await _checklistRepository.GuardarDatosTransporteRHF0121Async(
+        idInspeccion.Value,
+        idOperadorRH,
+        idTransporteRH,
+        origenDescarga,
+        destinoCarga,
+        numeroSellos,
+        numeroDelivery,
+        tipoTransporte,
+        tipoUnidad,
+        nivelTanque1,
+        nivelTanque2,
+        refrigerado,
+        fechaHoraLlegada,
+        fechaHoraSalida,
+        temperatura,
+        resultadoFinal,
+        rampaAsignada,
+        comentarios
+    );
+
+    Console.WriteLine(
+        "RH-F-01-21 | Datos específicos de transporte guardados."
+    );
+
+    // =====================================================
+    // RESPUESTAS DEL CHECKLIST
+    // 8 OP + 4 TR + 22 INSP = 34
+    // =====================================================
+
+    string? NormalizarRespuestaRH(string? valor)
+    {
+        if (string.IsNullOrWhiteSpace(valor))
+        {
+            return null;
+        }
+
+        return valor.Trim().ToLowerInvariant() switch
+        {
+            "cumple" => "CUMPLE",
+            "nocumple" => "NO_CUMPLE",
+            "no_cumple" => "NO_CUMPLE",
+            _ => null
+        };
+    }
+
+    var preguntasRH = new[]
+    {
+        // DATOS DEL OPERADOR
+        "OP-001",
+        "OP-002",
+        "OP-003",
+        "OP-004",
+        "OP-005",
+        "OP-006",
+        "OP-007",
+        "OP-008",
+
+        // DATOS DEL TRANSPORTE
+        "TR-001",
+        "TR-002",
+        "TR-003",
+        "TR-004",
+
+        // INSPECCIÓN
+        "INSP-001",
+        "INSP-002",
+        "INSP-003",
+        "INSP-004",
+        "INSP-005",
+        "INSP-006",
+        "INSP-007",
+        "INSP-008",
+        "INSP-009",
+        "INSP-010",
+        "INSP-011",
+        "INSP-012",
+        "INSP-013",
+        "INSP-014",
+        "INSP-015",
+        "INSP-016",
+        "INSP-017",
+        "INSP-018",
+        "INSP-019",
+        "INSP-020",
+        "INSP-021",
+        "INSP-022"
+    };
+
+    foreach (string codigoPregunta in preguntasRH)
+    {
+        if (
+            documento.RootElement.TryGetProperty(
+                codigoPregunta,
+                out var elementoRespuesta
+            )
+            && elementoRespuesta.ValueKind ==
+                JsonValueKind.String
+        )
+        {
+            string? valorReact =
+                elementoRespuesta.GetString();
+
+            string? valorSQL =
+                NormalizarRespuestaRH(valorReact);
+
+            if (!string.IsNullOrWhiteSpace(valorSQL))
+            {
+                await _checklistRepository
+                    .GuardarRespuestaOpcionPorChecklistAsync(
+                        idInspeccion.Value,
+                        "RH-F-01-21",
+                        codigoPregunta,
+                        valorSQL,
+                        null
+                    );
+
+                Console.WriteLine(
+                    $"RH-F-01-21 | {codigoPregunta} = {valorSQL}"
+                );
+            }
+        }
+    }
+
+    Console.WriteLine(
+        "Respuestas RH-F-01-21 guardadas en SQL."
+    );
 }
 
 // Determinar carpeta según el TIPO DE CHECKLIST
