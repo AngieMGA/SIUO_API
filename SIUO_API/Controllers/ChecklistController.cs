@@ -204,6 +204,17 @@ if (
     status = "PENDIENTE";
 }
 
+string? identificadorDispositivo = null;
+
+if (documento.RootElement.TryGetProperty(
+    "identificadorDispositivo",
+    out var dispositivoElemento)
+    && dispositivoElemento.ValueKind == JsonValueKind.String)
+{
+    identificadorDispositivo =
+        dispositivoElemento.GetString();
+}
+
         idInspeccion =
             await _checklistRepository.GuardarInspeccionAsync(
                 tipoChecklist,
@@ -213,7 +224,8 @@ if (
                 status,
                 observacionesGenerales,
                 nombreRecibe,
-                nombreSupervisor
+                nombreSupervisor,
+                identificadorDispositivo
             );
 
         Console.WriteLine(
@@ -3179,7 +3191,7 @@ if (tipoChecklist == "CHK-TRANSPORTE")
         }
 
 
-        // =========================================================
+// =========================================================
 // GUARDAR PDF
 // =========================================================
 
@@ -3189,6 +3201,8 @@ public async Task<IActionResult> GuardarPDF(
     [FromForm] string? areaMateriaPrima,
     [FromForm] string tipoChecklist,
     [FromForm] string? delivery,
+    [FromForm] string? material,
+    [FromForm] string? facturaRemision,
     [FromForm] IFormFile pdf)
 {
     Console.WriteLine("=================================");
@@ -3355,6 +3369,299 @@ public async Task<IActionResult> GuardarPDF(
                 rutaRemota
         });
     }
+
+    // =====================================================
+// SG-F-24-01
+// SUBIR PDF DIRECTAMENTE AL FTP
+// =====================================================
+
+if (
+    tipoChecklist?.Trim().Equals(
+        "SG-F-24-01",
+        StringComparison.OrdinalIgnoreCase
+    ) == true
+)
+{
+    // -------------------------------------------------
+    // Validar área
+    // -------------------------------------------------
+
+    if (string.IsNullOrWhiteSpace(areaMateriaPrima))
+    {
+        return BadRequest(new
+        {
+            mensaje = "No se recibió el área de SG-F-24-01."
+        });
+    }
+
+    // -------------------------------------------------
+    // Validar Factura / Remisión
+    // -------------------------------------------------
+
+    if (string.IsNullOrWhiteSpace(facturaRemision))
+    {
+        return BadRequest(new
+        {
+            mensaje =
+                "No se recibió el número de Factura/Remisión."
+        });
+    }
+
+    // -------------------------------------------------
+    // Fecha actual
+    // -------------------------------------------------
+
+    DateTime fechaActual = DateTime.Now;
+
+    string anio =
+        fechaActual.ToString("yyyy");
+
+    string mes =
+        $"{fechaActual.Month}." +
+        fechaActual.ToString(
+            "MMMM",
+            new System.Globalization.CultureInfo("es-MX")
+        ).ToUpper();
+
+    string dia =
+        fechaActual.ToString(
+            "dd.MM.yyyy"
+        );
+
+    // -------------------------------------------------
+    // Normalizar texto para carpeta FTP
+    // -------------------------------------------------
+
+    string NormalizarNombreFTP(string texto)
+    {
+        if (string.IsNullOrWhiteSpace(texto))
+        {
+            return "";
+        }
+
+        string textoNormalizado =
+            texto.Trim().Normalize(
+                System.Text.NormalizationForm.FormD
+            );
+
+        var resultado =
+            new System.Text.StringBuilder();
+
+        foreach (char caracter in textoNormalizado)
+        {
+            var categoria =
+                System.Globalization.CharUnicodeInfo
+                    .GetUnicodeCategory(caracter);
+
+            if (
+                categoria ==
+                System.Globalization.UnicodeCategory.NonSpacingMark
+            )
+            {
+                continue;
+            }
+
+            if (
+                char.IsLetterOrDigit(caracter) ||
+                caracter == ' ' ||
+                caracter == '-' ||
+                caracter == '_'
+            )
+            {
+                resultado.Append(caracter);
+            }
+        }
+
+        return resultado
+            .ToString()
+            .Normalize(
+                System.Text.NormalizationForm.FormC
+            )
+            .Trim()
+            .ToUpperInvariant();
+    }
+
+    // -------------------------------------------------
+    // Nombre del archivo
+    // -------------------------------------------------
+
+    string nombreFacturaRemision =
+        Path.GetFileName(
+            facturaRemision.Trim()
+        );
+
+    if (
+        string.IsNullOrWhiteSpace(
+            nombreFacturaRemision
+        )
+    )
+    {
+        return BadRequest(new
+        {
+            mensaje =
+                "El número de Factura/Remisión no es válido."
+        });
+    }
+
+    string nombreArchivo =
+        $"{nombreFacturaRemision}.pdf";
+
+    // -------------------------------------------------
+    // Carpeta principal
+    // -------------------------------------------------
+
+    string carpetaSGF2401;
+
+if (
+    areaMateriaPrima.Trim().Equals(
+        "Lata Vacía",
+        StringComparison.OrdinalIgnoreCase
+    )
+)
+{
+    carpetaSGF2401 =
+        "LISTA CHEQUEO SG-F-24-01 LATA VACIA";
+}
+else if (
+    areaMateriaPrima.Trim().Equals(
+        "Materias Primas",
+        StringComparison.OrdinalIgnoreCase
+    )
+
+    )
+    {
+        carpetaSGF2401 =
+            "LISTA CHEQUEO SG-F-24-01 MATERIAS PRIMAS";
+    }
+    else
+    {
+        return BadRequest(new
+        {
+            mensaje =
+                $"Área no válida para SG-F-24-01: {areaMateriaPrima}"
+        });
+    }
+
+    // -------------------------------------------------
+    // Construir ruta FTP
+    // -------------------------------------------------
+
+    string rutaRemota =
+        "/CHECK LIST/" +
+        carpetaSGF2401 +
+        "/" +
+        mes +
+        "/" +
+        dia +
+        "/";
+
+    // -------------------------------------------------
+    // Materias Primas necesita carpeta de material
+    // -------------------------------------------------
+
+    if (
+        areaMateriaPrima.Trim().Equals(
+            "Materias Primas",
+            StringComparison.OrdinalIgnoreCase
+        )
+    )
+    {
+        if (string.IsNullOrWhiteSpace(material))
+        {
+            return BadRequest(new
+            {
+                mensaje =
+                    "No se recibió el material de SG-F-24-01."
+            });
+        }
+
+        string materialFTP =
+            NormalizarNombreFTP(material);
+
+        if (string.IsNullOrWhiteSpace(materialFTP))
+        {
+            return BadRequest(new
+            {
+                mensaje =
+                    "El material recibido no es válido."
+            });
+        }
+
+        rutaRemota +=
+            materialFTP +
+            "/";
+    }
+
+    // -------------------------------------------------
+    // Agregar nombre del PDF
+    // -------------------------------------------------
+
+    rutaRemota +=
+        nombreArchivo;
+
+    Console.WriteLine(
+        "================================="
+    );
+
+    Console.WriteLine(
+        "SG-F-24-01 - PDF FTP"
+    );
+
+    Console.WriteLine(
+        $"Área: {areaMateriaPrima}"
+    );
+
+    Console.WriteLine(
+        $"Material: {material}"
+    );
+
+    Console.WriteLine(
+        $"Factura/Remisión: {facturaRemision}"
+    );
+
+    Console.WriteLine(
+        $"Ruta FTP: {rutaRemota}"
+    );
+
+    // -------------------------------------------------
+    // Subir directamente al FTP
+    // -------------------------------------------------
+
+    await using Stream stream =
+        pdf.OpenReadStream();
+
+    await _ftpService.SubirStreamAsync(
+        stream,
+        rutaRemota
+    );
+
+    Console.WriteLine(
+        $"PDF SG-F-24-01 subido al FTP: {rutaRemota}"
+    );
+
+    Console.WriteLine(
+        $"Tamaño: {pdf.Length} bytes"
+    );
+
+    Console.WriteLine(
+        "================================="
+    );
+
+    return Ok(new
+    {
+        mensaje =
+            "PDF SG-F-24-01 subido correctamente al FTP",
+
+        folio =
+            folio,
+
+        archivo =
+            nombreArchivo,
+
+        rutaFTP =
+            rutaRemota
+    });
+}
 
     // =====================================================
     // OTROS CHECKLISTS

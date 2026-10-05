@@ -20,7 +20,8 @@ namespace SIUO_API.Services
             string? status,
             string? observacionesGenerales,
             string? nombreRecibe,
-            string? nombreSupervisor)
+            string? nombreSupervisor,
+            string? identificadorDispositivo = null)
         {
             using var connection = _connectionFactory.CreateConnection();
 
@@ -94,20 +95,22 @@ namespace SIUO_API.Services
                         status,
                         observaciones_generales,
                         nombre_recibe,
-                        nombre_supervisor
+                        nombre_supervisor,
+                        identificador_dispositivo
                     )
                     OUTPUT INSERTED.id_inspeccion
                     VALUES
                     (
-                        @idChecklist,
-                        @idVersion,
-                        @folio,
-                        @fecha,
-                        @hora,
-                        @status,
-                        @observacionesGenerales,
-                        @nombreRecibe,
-                        @nombreSupervisor
+                    @idChecklist,
+                    @idVersion,
+                    @folio,
+                    @fecha,
+                    @hora,
+                    @status,
+                    @observacionesGenerales,
+                    @nombreRecibe,
+                    @nombreSupervisor,
+                    @identificadorDispositivo
                     );
                 ";
 
@@ -161,6 +164,10 @@ namespace SIUO_API.Services
                     commandInspeccion.Parameters.AddWithValue(
                         "@nombreSupervisor",
                         (object?)nombreSupervisor ?? DBNull.Value
+                    );
+                    commandInspeccion.Parameters.AddWithValue(
+                        "@identificadorDispositivo",
+                        (object?)identificadorDispositivo ?? DBNull.Value
                     );
 
                     idInspeccion = Convert.ToInt32(
