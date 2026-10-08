@@ -12,6 +12,61 @@ namespace SIUO_API.Services
             _connectionFactory = connectionFactory;
         }
 
+// OBTENER INSPECCIÓN EXISTENTE POR FOLIO
+// =========================================================
+// Se utiliza principalmente para CHK-TRANSPORTE,
+// ya que VIGILANCIA y APT trabajan sobre la misma inspección.
+// =========================================================
+
+public async Task<int?> ObtenerInspeccionPorFolioAsync(
+    string codigoChecklist,
+    string folio)
+{
+    using var connection =
+        _connectionFactory.CreateConnection();
+
+    await connection.OpenAsync();
+
+    const string consulta = @"
+        SELECT TOP 1
+            i.id_inspeccion
+        FROM [userchecklist].[INSPECCION] i
+
+        INNER JOIN [userchecklist].[CHECKLIST] c
+            ON c.id_checklist = i.id_checklist
+
+        WHERE c.codigo = @codigoChecklist
+          AND i.folio = @folio
+
+        ORDER BY i.id_inspeccion DESC;
+    ";
+
+    using var command =
+        new SqlCommand(
+            consulta,
+            connection
+        );
+
+    command.Parameters.AddWithValue(
+        "@codigoChecklist",
+        codigoChecklist
+    );
+
+    command.Parameters.AddWithValue(
+        "@folio",
+        folio
+    );
+
+    var resultado =
+        await command.ExecuteScalarAsync();
+
+    if (resultado == null)
+    {
+        return null;
+    }
+
+    return Convert.ToInt32(resultado);
+}
         public async Task<int> GuardarInspeccionAsync(
             string codigoChecklist,
             string folio,
@@ -339,41 +394,56 @@ namespace SIUO_API.Services
         }
 
         public async Task RelacionarOperadorConInspeccionAsync(
-            int idInspeccion,
-            int idOperador)
-        {
-            using var connection = _connectionFactory.CreateConnection();
-            await connection.OpenAsync();
+    int idInspeccion,
+    int idOperador)
+{
+    using var connection =
+        _connectionFactory.CreateConnection();
 
-            const string consulta = @"
-                INSERT INTO [userchecklist].[INSPECCION_OPERADOR]
-                (
-                    id_inspeccion,
-                    id_operador
-                )
-                VALUES
-                (
-                    @idInspeccion,
-                    @idOperador
-                );
-            ";
+    await connection.OpenAsync();
 
-            using var command = new SqlCommand(
-                consulta,
-                connection);
+    const string consulta = @"
+        IF NOT EXISTS
+        (
+            SELECT 1
+            FROM [userchecklist].[INSPECCION_OPERADOR]
+            WHERE id_inspeccion = @idInspeccion
+              AND id_operador = @idOperador
+        )
+        BEGIN
 
-            command.Parameters.AddWithValue(
-                "@idInspeccion",
-                idInspeccion
+            INSERT INTO [userchecklist].[INSPECCION_OPERADOR]
+            (
+                id_inspeccion,
+                id_operador
+            )
+            VALUES
+            (
+                @idInspeccion,
+                @idOperador
             );
 
-            command.Parameters.AddWithValue(
-                "@idOperador",
-                idOperador
-            );
+        END;
+    ";
 
-            await command.ExecuteNonQueryAsync();
-        }
+    using var command =
+        new SqlCommand(
+            consulta,
+            connection
+        );
+
+    command.Parameters.AddWithValue(
+        "@idInspeccion",
+        idInspeccion
+    );
+
+    command.Parameters.AddWithValue(
+        "@idOperador",
+        idOperador
+    );
+
+    await command.ExecuteNonQueryAsync();
+}
 
         public async Task GuardarNivelTanqueAsync(
     int idInspeccion,
@@ -532,6 +602,300 @@ public async Task GuardarCaducidadAsync(
     await command.ExecuteNonQueryAsync();
 }
 
+// =========================================================
+// GUARDAR DATOS GENERALES DEL CHK-TRANSPORTE
+// =========================================================
+
+public async Task GuardarDatosTransporteCHKAsync(
+    int idInspeccion,
+    string nombreInspector,
+    int idOperador,
+    int idTransporte,
+    string? delivery)
+{
+    using var connection =
+        _connectionFactory.CreateConnection();
+
+    await connection.OpenAsync();
+
+    const string consulta = @"
+        IF EXISTS
+        (
+            SELECT 1
+            FROM [userchecklist].[DATOS_TRANSPORTE_CHK]
+            WHERE id_inspeccion = @idInspeccion
+        )
+        BEGIN
+
+            UPDATE [userchecklist].[DATOS_TRANSPORTE_CHK]
+            SET
+                nombre_inspector = @nombreInspector,
+                id_operador = @idOperador,
+                id_transporte = @idTransporte,
+                delivery = @delivery
+            WHERE id_inspeccion = @idInspeccion;
+
+        END
+        ELSE
+        BEGIN
+
+            INSERT INTO [userchecklist].[DATOS_TRANSPORTE_CHK]
+            (
+                id_inspeccion,
+                nombre_inspector,
+                id_operador,
+                id_transporte,
+                delivery
+            )
+            VALUES
+            (
+                @idInspeccion,
+                @nombreInspector,
+                @idOperador,
+                @idTransporte,
+                @delivery
+            );
+
+        END;
+    ";
+
+    using var command =
+        new SqlCommand(
+            consulta,
+            connection
+        );
+
+    command.Parameters.AddWithValue(
+        "@idInspeccion",
+        idInspeccion
+    );
+
+    command.Parameters.AddWithValue(
+        "@nombreInspector",
+        nombreInspector
+    );
+
+    command.Parameters.AddWithValue(
+        "@idOperador",
+        idOperador
+    );
+
+    command.Parameters.AddWithValue(
+        "@idTransporte",
+        idTransporte
+    );
+
+    command.Parameters.AddWithValue(
+        "@delivery",
+        (object?)delivery ?? DBNull.Value
+    );
+
+    await command.ExecuteNonQueryAsync();
+}
+
+// GUARDAR RESPUESTA DE TEXTO
+// =========================================================
+// Se utiliza para preguntas como:
+// TR-001 Nombre Inspector
+// TR-002 Nombre operador
+// TR-003 Teléfono operador
+// TR-004 Línea transporte
+// TR-005 Delivery
+// TR-006 Placas y Tarjeta de Circulación
+// TR-008 Remolque 1
+// TR-011 Remolque 2
+// ENR-003 Observaciones
+//
+// id_opcion queda NULL porque son preguntas de tipo TEXTO.
+// =========================================================
+
+public async Task GuardarRespuestaTextoPorChecklistAsync(
+    int idInspeccion,
+    string tipoChecklist,
+    string codigoPregunta,
+    string valorRespuesta,
+    string? observaciones)
+{
+    using var connection =
+        _connectionFactory.CreateConnection();
+
+    await connection.OpenAsync();
+
+    const string consulta = @"
+        IF EXISTS
+        (
+            SELECT 1
+            FROM [userchecklist].[RESPUESTA] r
+            INNER JOIN [userchecklist].[PREGUNTA] p
+                ON p.id_pregunta = r.id_pregunta
+
+            INNER JOIN [userchecklist].[INSPECCION] i
+                ON i.id_inspeccion = r.id_inspeccion
+
+            INNER JOIN [userchecklist].[VERSION_CHECKLIST] v
+                ON v.id_version = i.id_version
+
+            INNER JOIN [userchecklist].[CHECKLIST] c
+                ON c.id_checklist = v.id_checklist
+
+            WHERE r.id_inspeccion = @idInspeccion
+              AND c.codigo = @tipoChecklist
+              AND p.codigo = @codigoPregunta
+        )
+        BEGIN
+
+            UPDATE r
+            SET
+                r.valor = @valorRespuesta,
+                r.observaciones = @observaciones
+            FROM [userchecklist].[RESPUESTA] r
+
+            INNER JOIN [userchecklist].[PREGUNTA] p
+                ON p.id_pregunta = r.id_pregunta
+
+            INNER JOIN [userchecklist].[INSPECCION] i
+                ON i.id_inspeccion = r.id_inspeccion
+
+            INNER JOIN [userchecklist].[VERSION_CHECKLIST] v
+                ON v.id_version = i.id_version
+
+            INNER JOIN [userchecklist].[CHECKLIST] c
+                ON c.id_checklist = v.id_checklist
+
+            WHERE r.id_inspeccion = @idInspeccion
+              AND c.codigo = @tipoChecklist
+              AND p.codigo = @codigoPregunta;
+
+        END
+        ELSE
+        BEGIN
+
+            INSERT INTO [userchecklist].[RESPUESTA]
+            (
+                id_inspeccion,
+                id_pregunta,
+                id_opcion,
+                valor,
+                observaciones
+            )
+            SELECT
+                @idInspeccion,
+                p.id_pregunta,
+                NULL,
+                @valorRespuesta,
+                @observaciones
+            FROM [userchecklist].[INSPECCION] i
+
+            INNER JOIN [userchecklist].[VERSION_CHECKLIST] v
+                ON v.id_version = i.id_version
+
+            INNER JOIN [userchecklist].[SECCION] s
+                ON s.id_version = v.id_version
+
+            INNER JOIN [userchecklist].[PREGUNTA] p
+                ON p.id_seccion = s.id_seccion
+
+            INNER JOIN [userchecklist].[CHECKLIST] c
+                ON c.id_checklist = v.id_checklist
+
+            WHERE i.id_inspeccion = @idInspeccion
+              AND c.codigo = @tipoChecklist
+              AND p.codigo = @codigoPregunta;
+
+        END;
+    ";
+
+    using var command =
+        new SqlCommand(
+            consulta,
+            connection
+        );
+
+    command.Parameters.AddWithValue(
+        "@idInspeccion",
+        idInspeccion
+    );
+
+    command.Parameters.AddWithValue(
+        "@tipoChecklist",
+        tipoChecklist
+    );
+
+    command.Parameters.AddWithValue(
+        "@codigoPregunta",
+        codigoPregunta
+    );
+
+    command.Parameters.AddWithValue(
+        "@valorRespuesta",
+        valorRespuesta
+    );
+
+    command.Parameters.AddWithValue(
+        "@observaciones",
+        (object?)observaciones ?? DBNull.Value
+    );
+
+    await command.ExecuteNonQueryAsync();
+}
+
+// GUARDAR EVIDENCIA EN SQL
+// =========================================================
+// El archivo físico continúa guardándose en FTP.
+// Aquí solamente registramos su relación con la inspección.
+// =========================================================
+
+public async Task GuardarEvidenciaAsync(
+    int idInspeccion,
+    string nombreArchivo,
+    string rutaFtp)
+{
+    using var connection =
+        _connectionFactory.CreateConnection();
+
+    await connection.OpenAsync();
+
+    const string consulta = @"
+        INSERT INTO [userchecklist].[EVIDENCIA]
+        (
+            id_inspeccion,
+            nombre_archivo,
+            ruta_ftp,
+            fecha_registro
+        )
+        VALUES
+        (
+            @idInspeccion,
+            @nombreArchivo,
+            @rutaFtp,
+            GETDATE()
+        );
+    ";
+
+    using var command =
+        new SqlCommand(
+            consulta,
+            connection
+        );
+
+    command.Parameters.AddWithValue(
+        "@idInspeccion",
+        idInspeccion
+    );
+
+    command.Parameters.AddWithValue(
+        "@nombreArchivo",
+        nombreArchivo
+    );
+
+    command.Parameters.AddWithValue(
+        "@rutaFtp",
+        rutaFtp
+    );
+
+    await command.ExecuteNonQueryAsync();
+}
+
 public async Task GuardarRespuestaOpcionAsync(
     int idInspeccion,
     string codigoPregunta,
@@ -593,6 +957,41 @@ public async Task GuardarRespuestaOpcionAsync(
     await command.ExecuteNonQueryAsync();
 }
 
+// =========================================================
+// OBTENER CANTIDAD DE EVIDENCIAS DE UNA INSPECCIÓN
+// =========================================================
+
+public async Task<int> ObtenerCantidadEvidenciasAsync(
+    int idInspeccion)
+{
+    using var connection =
+        _connectionFactory.CreateConnection();
+
+    await connection.OpenAsync();
+
+    const string consulta = @"
+        SELECT COUNT(*)
+        FROM [userchecklist].[EVIDENCIA]
+        WHERE id_inspeccion = @idInspeccion;
+    ";
+
+    using var command =
+        new SqlCommand(
+            consulta,
+            connection
+        );
+
+    command.Parameters.AddWithValue(
+        "@idInspeccion",
+        idInspeccion
+    );
+
+    object? resultado =
+        await command.ExecuteScalarAsync();
+
+    return Convert.ToInt32(resultado);
+}
+
 // GUARDAR RESPUESTA DE CONDICIONES DEL MATERIAL
 // Este método guarda una respuesta de tipo texto para una
 // pregunta del checklist.
@@ -616,45 +1015,114 @@ public async Task GuardarRespuestaOpcionPorChecklistAsync(
     await connection.OpenAsync();
 
     const string consulta = @"
-        INSERT INTO [userchecklist].[RESPUESTA]
+        IF EXISTS
         (
-            id_inspeccion,
-            id_pregunta,
-            id_opcion,
-            valor,
-            observaciones
+            SELECT 1
+            FROM [userchecklist].[RESPUESTA] r
+
+            INNER JOIN [userchecklist].[PREGUNTA] p
+                ON p.id_pregunta = r.id_pregunta
+
+            INNER JOIN [userchecklist].[INSPECCION] i
+                ON i.id_inspeccion = r.id_inspeccion
+
+            INNER JOIN [userchecklist].[VERSION_CHECKLIST] v
+                ON v.id_version = i.id_version
+
+            INNER JOIN [userchecklist].[CHECKLIST] c
+                ON c.id_checklist = v.id_checklist
+
+            WHERE r.id_inspeccion = @idInspeccion
+              AND c.codigo = @tipoChecklist
+              AND p.codigo = @codigoPregunta
         )
-        SELECT
-            @idInspeccion,
-            p.id_pregunta,
-            o.id_opcion,
-            @valorRespuesta,
-            @observaciones
-        FROM [userchecklist].[INSPECCION] i
+        BEGIN
 
-        INNER JOIN [userchecklist].[VERSION_CHECKLIST] v
-            ON v.id_version = i.id_version
+            UPDATE r
+            SET
+                r.id_opcion =
+                (
+                    SELECT TOP 1
+                        o.id_opcion
+                    FROM [userchecklist].[PREGUNTA] p2
 
-        INNER JOIN [userchecklist].[SECCION] s
-            ON s.id_version = v.id_version
+                    INNER JOIN [userchecklist].[OPCION_RESPUESTA] o
+                        ON o.id_pregunta = p2.id_pregunta
 
-        INNER JOIN [userchecklist].[PREGUNTA] p
-            ON p.id_seccion = s.id_seccion
+                    WHERE p2.codigo = @codigoPregunta
+                      AND o.valor = @valorRespuesta
+                ),
 
-        INNER JOIN [userchecklist].[OPCION_RESPUESTA] o
-            ON o.id_pregunta = p.id_pregunta
+                r.valor = @valorRespuesta,
+                r.observaciones = @observaciones
 
-        INNER JOIN [userchecklist].[CHECKLIST] c
-            ON c.id_checklist = v.id_checklist
+            FROM [userchecklist].[RESPUESTA] r
 
-        WHERE i.id_inspeccion = @idInspeccion
-          AND c.codigo = @tipoChecklist
-          AND p.codigo = @codigoPregunta
-          AND o.valor = @valorRespuesta;
+            INNER JOIN [userchecklist].[PREGUNTA] p
+                ON p.id_pregunta = r.id_pregunta
+
+            INNER JOIN [userchecklist].[INSPECCION] i
+                ON i.id_inspeccion = r.id_inspeccion
+
+            INNER JOIN [userchecklist].[VERSION_CHECKLIST] v
+                ON v.id_version = i.id_version
+
+            INNER JOIN [userchecklist].[CHECKLIST] c
+                ON c.id_checklist = v.id_checklist
+
+            WHERE r.id_inspeccion = @idInspeccion
+              AND c.codigo = @tipoChecklist
+              AND p.codigo = @codigoPregunta;
+
+        END
+        ELSE
+        BEGIN
+
+            INSERT INTO [userchecklist].[RESPUESTA]
+            (
+                id_inspeccion,
+                id_pregunta,
+                id_opcion,
+                valor,
+                observaciones
+            )
+            SELECT
+                @idInspeccion,
+                p.id_pregunta,
+                o.id_opcion,
+                @valorRespuesta,
+                @observaciones
+
+            FROM [userchecklist].[INSPECCION] i
+
+            INNER JOIN [userchecklist].[VERSION_CHECKLIST] v
+                ON v.id_version = i.id_version
+
+            INNER JOIN [userchecklist].[SECCION] s
+                ON s.id_version = v.id_version
+
+            INNER JOIN [userchecklist].[PREGUNTA] p
+                ON p.id_seccion = s.id_seccion
+
+            INNER JOIN [userchecklist].[OPCION_RESPUESTA] o
+                ON o.id_pregunta = p.id_pregunta
+
+            INNER JOIN [userchecklist].[CHECKLIST] c
+                ON c.id_checklist = v.id_checklist
+
+            WHERE i.id_inspeccion = @idInspeccion
+              AND c.codigo = @tipoChecklist
+              AND p.codigo = @codigoPregunta
+              AND o.valor = @valorRespuesta;
+
+        END;
     ";
 
     using var command =
-        new SqlCommand(consulta, connection);
+        new SqlCommand(
+            consulta,
+            connection
+        );
 
     command.Parameters.AddWithValue(
         "@idInspeccion",
@@ -684,8 +1152,6 @@ public async Task GuardarRespuestaOpcionPorChecklistAsync(
     await command.ExecuteNonQueryAsync();
 }
 
-
-// =========================================================
 // GUARDAR TIPO DE ACTIVIDAD DE TRASVASE
 // =========================================================
 // Guarda el tipo de trabajo seleccionado en el frontend

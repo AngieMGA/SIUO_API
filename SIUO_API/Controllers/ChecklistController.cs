@@ -88,9 +88,8 @@ int? idInspeccion = null;
 
 if (!string.IsNullOrWhiteSpace(tipoChecklist))
 {
-    try
-    {
-        string? observacionesGenerales = null;
+
+string? observacionesGenerales = null;
 string? nombreRecibe = null;
 string? nombreSupervisor = null;
 
@@ -215,8 +214,59 @@ if (documento.RootElement.TryGetProperty(
         dispositivoElemento.GetString();
 }
 
+// =========================================================
+// GUARDAR / RECUPERAR INSPECCIÓN
+// =========================================================
+
+if (
+    tipoChecklist.Equals(
+        "CHK-TRANSPORTE",
+        StringComparison.OrdinalIgnoreCase
+    )
+)
+{
+    int? inspeccionEncontrada =
+        await _checklistRepository
+            .ObtenerInspeccionPorFolioAsync(
+                "CHK-TRANSPORTE",
+                folio
+            );
+
+    if (inspeccionEncontrada.HasValue)
+    {
         idInspeccion =
-            await _checklistRepository.GuardarInspeccionAsync(
+            inspeccionEncontrada.Value;
+
+        Console.WriteLine(
+            $"CHK-TRANSPORTE existente. Se reutiliza ID: {idInspeccion}"
+        );
+    }
+    else
+    {
+        idInspeccion =
+            await _checklistRepository
+                .GuardarInspeccionAsync(
+                    tipoChecklist,
+                    folio,
+                    fechaInspeccion,
+                    horaInspeccion,
+                    status,
+                    observacionesGenerales,
+                    nombreRecibe,
+                    nombreSupervisor,
+                    identificadorDispositivo
+                );
+
+        Console.WriteLine(
+            $"Nueva inspección CHK-TRANSPORTE guardada. ID: {idInspeccion}"
+        );
+    }
+}
+else
+{
+    idInspeccion =
+        await _checklistRepository
+            .GuardarInspeccionAsync(
                 tipoChecklist,
                 folio,
                 fechaInspeccion,
@@ -228,22 +278,11 @@ if (documento.RootElement.TryGetProperty(
                 identificadorDispositivo
             );
 
-        Console.WriteLine(
-            $"Inspección guardada en SQL. ID: {idInspeccion}"
-        );
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine(
-            $"Error al guardar inspección en SQL: {ex.Message}"
-        );
+    Console.WriteLine(
+        $"Inspección guardada en SQL. ID: {idInspeccion}"
+    );
+}
 
-        return StatusCode(500, new
-        {
-            mensaje = "El JSON se recibió, pero no se pudo guardar la inspección en SQL Server.",
-            error = ex.Message
-        });
-    }
 }
 
 // -----------------------------------------------------
@@ -2063,6 +2102,7 @@ if (
     Console.WriteLine(
         "Condiciones del material guardadas en SQL."
     );
+
  
 // GUARDAR EQUIPO DE PROTECCIÓN PERSONAL (EPP)
 // CHECKLIST: SG-F-24-33
@@ -2702,6 +2742,12 @@ Console.WriteLine(
 );
 
 // =========================================================
+// FIN DEL BLOQUE SG-F-24-33
+// =========================================================
+
+}
+
+// =========================================================
 // GUARDAR LLANTAS DEL CHECKLIST DE TRANSPORTE
 // =========================================================
 // Este bloque guarda el estado de cada llanta y sus
@@ -2732,12 +2778,19 @@ bool esTransporte =
 bool tieneId =
     idInspeccion.HasValue;
 
-Console.WriteLine($"*** esTransporte = {esTransporte} ***");
-Console.WriteLine($"*** tieneId = {tieneId} ***");
+Console.WriteLine(
+    $"*** esTransporte = {esTransporte} ***"
+);
+
+Console.WriteLine(
+    $"*** tieneId = {tieneId} ***"
+);
 
 if (esTransporte && tieneId)
 {
-    // Función local para guardar las llantas de un remolque
+    // =====================================================
+    // FUNCIÓN PARA GUARDAR LAS LLANTAS DE UN REMOLQUE
+    // =====================================================
 
     async Task GuardarLlantasAsync(
         JsonElement arregloLlantas,
@@ -2756,72 +2809,88 @@ if (esTransporte && tieneId)
             $"*** CANTIDAD DE LLANTAS: {arregloLlantas.GetArrayLength()} ***"
         );
 
-        foreach (JsonElement llanta in arregloLlantas.EnumerateArray())
+        foreach (
+            JsonElement llanta
+            in arregloLlantas.EnumerateArray()
+        )
         {
             string? numeroLlanta = null;
             string? estado = null;
             string? comentario = null;
 
-        // ---------------------------------------------
-        // Número de llanta
-        // ---------------------------------------------
-        // React puede enviar el número como:
-        // - número JSON: 2
-        // - texto JSON: "2"
-        //
-        // Se aceptan ambos formatos para evitar que una
-        // diferencia de serialización impida guardar la llanta.
-        // ---------------------------------------------
-        if (
-            llanta.TryGetProperty(
-                "numero",
-                out var numeroElemento
+            // ---------------------------------------------
+            // Número de llanta
+            // ---------------------------------------------
+            // React puede enviar el número como:
+            // - número JSON: 2
+            // - texto JSON: "2"
+            //
+            // Se aceptan ambos formatos.
+            // ---------------------------------------------
+
+            if (
+                llanta.TryGetProperty(
+                    "numero",
+                    out var numeroElemento
+                )
             )
-        )
-        {
-            if (numeroElemento.ValueKind == JsonValueKind.Number)
             {
-                numeroLlanta =
-                    numeroElemento.GetRawText();
+                if (
+                    numeroElemento.ValueKind
+                    == JsonValueKind.Number
+                )
+                {
+                    numeroLlanta =
+                        numeroElemento.GetRawText();
+                }
+                else if (
+                    numeroElemento.ValueKind
+                    == JsonValueKind.String
+                )
+                {
+                    numeroLlanta =
+                        numeroElemento.GetString();
+                }
             }
-            else if (numeroElemento.ValueKind == JsonValueKind.String)
-            {
-                numeroLlanta =
-                    numeroElemento.GetString();
-            }
-        }
 
             // ---------------------------------------------
             // Estado
             // ---------------------------------------------
+
             if (
                 llanta.TryGetProperty(
                     "estado",
                     out var estadoElemento
                 )
-                && estadoElemento.ValueKind == JsonValueKind.String
+                && estadoElemento.ValueKind
+                    == JsonValueKind.String
             )
             {
-                estado = estadoElemento.GetString();
+                estado =
+                    estadoElemento.GetString();
             }
 
             // ---------------------------------------------
             // Comentario
             // ---------------------------------------------
+
             if (
                 llanta.TryGetProperty(
                     "comentario",
                     out var comentarioElemento
                 )
-                && comentarioElemento.ValueKind == JsonValueKind.String
+                && comentarioElemento.ValueKind
+                    == JsonValueKind.String
             )
             {
-                comentario = comentarioElemento.GetString();
+                comentario =
+                    comentarioElemento.GetString();
             }
 
             // ---------------------------------------------
             // Validar información mínima
             // ---------------------------------------------
+
             if (
                 string.IsNullOrWhiteSpace(numeroLlanta)
                 || string.IsNullOrWhiteSpace(estado)
@@ -2833,22 +2902,33 @@ if (esTransporte && tieneId)
             // ---------------------------------------------
             // Normalizar valores
             // ---------------------------------------------
+
             string tipoRemolqueNormalizado =
-                tipoRemolque.Trim().ToUpperInvariant();
+                tipoRemolque
+                    .Trim()
+                    .ToUpperInvariant();
 
             string estadoNormalizado =
-                estado.Trim().ToUpperInvariant();
+                estado
+                    .Trim()
+                    .ToUpperInvariant();
 
             // ---------------------------------------------
             // Guardar llanta principal
             // ---------------------------------------------
 
             Console.WriteLine(
-            $"*** GUARDANDO LLANTA: {tipoRemolqueNormalizado} - NUMERO: [{numeroLlanta}] - ESTADO: [{estadoNormalizado}] ***"
-        );
+                $"*** GUARDANDO LLANTA: " +
+                $"{tipoRemolqueNormalizado} - " +
+                $"NUMERO: [{numeroLlanta}] - " +
+                $"ESTADO: [{estadoNormalizado}] ***"
+            );
+
+            int idInspeccionActual = idInspeccion.GetValueOrDefault();
+
             int idLlanta =
                 await _checklistRepository.GuardarLlantaAsync(
-                    idInspeccion.Value,
+                    idInspeccionActual,
                     tipoRemolqueNormalizado,
                     numeroLlanta.Trim(),
                     estadoNormalizado,
@@ -2860,16 +2940,18 @@ if (esTransporte && tieneId)
             // ---------------------------------------------
             // Guardar incidencias
             //
-            // Solo se consideran incidencias cuando la llanta
-            // actualmente está marcada como DANADA.
+            // Solo se consideran incidencias cuando la
+            // llanta está marcada como DANADA.
             // ---------------------------------------------
+
             if (
                 estadoNormalizado == "DANADA"
                 && llanta.TryGetProperty(
                     "incidencias",
                     out var incidenciasElemento
                 )
-                && incidenciasElemento.ValueKind == JsonValueKind.Array
+                && incidenciasElemento.ValueKind
+                    == JsonValueKind.Array
             )
             {
                 foreach (
@@ -2888,7 +2970,11 @@ if (esTransporte && tieneId)
                     string? incidencia =
                         incidenciaElemento.GetString();
 
-                    if (string.IsNullOrWhiteSpace(incidencia))
+                    if (
+                        string.IsNullOrWhiteSpace(
+                            incidencia
+                        )
+                    )
                     {
                         continue;
                     }
@@ -2896,37 +2982,47 @@ if (esTransporte && tieneId)
                     await _checklistRepository
                         .GuardarIncidenciaLlantaAsync(
                             idLlanta,
-                            incidencia.Trim().ToUpperInvariant()
+                            incidencia
+                                .Trim()
+                                .ToUpperInvariant()
                         );
                 }
             }
         }
     }
 
-    // Guardar llantas del remolque sencillo
+    // =====================================================
+    // GUARDAR LLANTAS DEL REMOLQUE SENCILLO
+    // =====================================================
 
     if (
-    documento.RootElement.TryGetProperty(
-        "llantasSencillo",
-        out var llantasSencilloElemento
+        documento.RootElement.TryGetProperty(
+            "llantasSencillo",
+            out var llantasSencilloElemento
+        )
     )
-)
-{
-    Console.WriteLine(
-        $"*** LLANTAS SENCILLO - TIPO JSON: {llantasSencilloElemento.ValueKind} ***"
-    );
+    {
+        Console.WriteLine(
+            $"*** LLANTAS SENCILLO - TIPO JSON: " +
+            $"{llantasSencilloElemento.ValueKind} ***"
+        );
 
-    Console.WriteLine(
-        $"*** LLANTAS SENCILLO - CONTENIDO: {llantasSencilloElemento.GetRawText()} ***"
-    ); 
+        Console.WriteLine(
+            $"*** LLANTAS SENCILLO - CONTENIDO: " +
+            $"{llantasSencilloElemento.GetRawText()} ***"
+        );
 
-    await GuardarLlantasAsync(
-        llantasSencilloElemento,
-        "SENCILLO"
-    );
-}
-    // Guardar llantas FULL solamente cuando existe un segundo remolque.
-    
+        await GuardarLlantasAsync(
+            llantasSencilloElemento,
+            "SENCILLO"
+        );
+    }
+
+    // =====================================================
+    // GUARDAR LLANTAS FULL
+    // SOLAMENTE SI EXISTE UN SEGUNDO REMOLQUE
+    // =====================================================
+
     bool tieneSegundoRemolque = false;
 
     if (
@@ -2934,7 +3030,8 @@ if (esTransporte && tieneId)
             "remolque2",
             out var remolque2Elemento
         )
-        && remolque2Elemento.ValueKind == JsonValueKind.String
+        && remolque2Elemento.ValueKind
+            == JsonValueKind.String
     )
     {
         tieneSegundoRemolque =
@@ -2961,8 +3058,466 @@ if (esTransporte && tieneId)
         "Llantas del checklist de transporte guardadas en SQL."
     );
 }
+
+// =========================================================
+// GUARDAR DATOS Y RESPUESTAS DEL CHK-TRANSPORTE
+// =========================================================
+
+if (
+    tipoChecklist?.Trim().Equals(
+        "CHK-TRANSPORTE",
+        StringComparison.OrdinalIgnoreCase
+    ) == true
+    && idInspeccion.HasValue
+)
+{
+    int idInspeccionActual =
+        idInspeccion.Value;
+
+    // =====================================================
+    // FUNCIÓN PARA OBTENER TEXTO DEL JSON
+    // =====================================================
+
+    string? ObtenerTextoCHK(string nombreCampo)
+    {
+        if (
+            documento.RootElement.TryGetProperty(
+                nombreCampo,
+                out var elemento
+            )
+            && elemento.ValueKind
+                == JsonValueKind.String
+        )
+        {
+            return elemento.GetString();
+        }
+
+        return null;
+    }
+
+    // =====================================================
+    // DATOS GENERALES
+    // =====================================================
+
+    string? nombreInspector =
+        ObtenerTextoCHK("inspector");
+
+    string? nombreOperador =
+        ObtenerTextoCHK("nombreOperador");
+
+    string? telefonoOperador =
+        ObtenerTextoCHK("telefonoOperador");
+
+    string? lineaTransporte =
+        ObtenerTextoCHK("lineaTransporte");
+
+    string? deliveryCHK =
+        ObtenerTextoCHK("delivery");
+
+    string? placasTarjeta =
+        ObtenerTextoCHK(
+            "placasytarjetacirculacion"
+        );
+
+    string? remolque1 =
+        ObtenerTextoCHK("remolque1");
+
+    string? remolque2 =
+        ObtenerTextoCHK("remolque2");
+
+    Console.WriteLine(
+        $"*** CHK DATOS GENERALES ***"
+    );
+
+    Console.WriteLine(
+        $"Inspector: [{nombreInspector}]"
+    );
+
+    Console.WriteLine(
+        $"Operador: [{nombreOperador}]"
+    );
+
+    Console.WriteLine(
+        $"Teléfono operador: [{telefonoOperador}]"
+    );
+
+    Console.WriteLine(
+        $"Línea transporte: [{lineaTransporte}]"
+    );
+
+    Console.WriteLine(
+        $"Delivery: [{delivery}]"
+    );
+
+    Console.WriteLine(
+        $"Remolque 1: [{remolque1}]"
+    );
+
+    Console.WriteLine(
+        $"Remolque 2: [{remolque2}]"
+    );
+
+
+    // =====================================================
+    // OBTENER / CREAR OPERADOR
+    // =====================================================
+
+    int? idOperadorCHK = null;
+
+    if (
+        !string.IsNullOrWhiteSpace(
+            nombreOperador
+        )
+    )
+    {
+        idOperadorCHK =
+            await _checklistRepository
+                .ObtenerOCrearOperadorAsync(
+                    nombreOperador.Trim()
+                );
+
+        Console.WriteLine(
+            $"*** ID OPERADOR CHK: {idOperadorCHK} ***"
+        );
+    }
+
+
+    // =====================================================
+    // OBTENER / CREAR TRANSPORTE
+    // =====================================================
+    //
+    // El formulario actual proporciona:
+    // - línea de transporte
+    // - remolque 1
+    // - remolque 2
+    //
+    // Los campos de tractor y placas se dejan NULL porque
+    // el formulario actual los maneja como un campo combinado
+    // "placasytarjetacirculacion".
+    //
+    // Ese dato sí se guarda como respuesta TR-006.
+    // =====================================================
+
+    int? idTransporteCHK = null;
+
+    if (
+        !string.IsNullOrWhiteSpace(
+            lineaTransporte
+        )
+    )
+    {
+        idTransporteCHK =
+            await _checklistRepository
+                .ObtenerOCrearTransporteRHF0121Async(
+                    lineaTransporte.Trim(),
+                    null,
+                    string.IsNullOrWhiteSpace(remolque1)
+                        ? null
+                        : remolque1.Trim(),
+                    string.IsNullOrWhiteSpace(remolque2)
+                        ? null
+                        : remolque2.Trim(),
+                    null,
+                    null,
+                    null
+                );
+
+        Console.WriteLine(
+            $"*** ID TRANSPORTE CHK: {idTransporteCHK} ***"
+        );
+    }
+
+
+    // =====================================================
+    // DATOS_TRANSPORTE_CHK
+    // =====================================================
+
+    if (
+        !string.IsNullOrWhiteSpace(
+            nombreInspector
+        )
+        && idOperadorCHK.HasValue
+        && idTransporteCHK.HasValue
+    )
+    {
+        await _checklistRepository
+        .GuardarDatosTransporteCHKAsync(
+            idInspeccionActual,
+            nombreInspector.Trim(),
+            idOperadorCHK.Value,
+            idTransporteCHK.Value,
+            deliveryCHK
+        );
+
+        Console.WriteLine(
+            "*** DATOS_TRANSPORTE_CHK GUARDADO ***"
+        );
+    }
+
+
+    // =====================================================
+    // RELACIONAR OPERADOR CON INSPECCIÓN
+    // =====================================================
+
+    if (idOperadorCHK.HasValue)
+    {
+        await _checklistRepository
+            .RelacionarOperadorConInspeccionAsync(
+                idInspeccionActual,
+                idOperadorCHK.Value
+            );
+
+        Console.WriteLine(
+            "*** INSPECCION_OPERADOR GUARDADO ***"
+        );
+    }
+
+
+    // =====================================================
+    // RESPUESTAS DE TEXTO
+    // =====================================================
+
+    var preguntasTextoCHK =
+        new Dictionary<string, string?>
+        {
+            { "TR-001", nombreInspector },
+            { "TR-002", nombreOperador },
+            { "TR-003", telefonoOperador },
+            { "TR-004", lineaTransporte },
+            { "TR-005", deliveryCHK },
+            { "TR-006", placasTarjeta },
+            { "TR-008", remolque1 },
+            { "TR-011", remolque2 },
+            {
+                "ENR-003",
+                ObtenerTextoCHK(
+                    "observacionesEnrampado"
+                )
+            }
+        };
+
+
+    foreach (
+        var pregunta in preguntasTextoCHK
+    )
+    {
+        if (
+            string.IsNullOrWhiteSpace(
+                pregunta.Value
+            )
+        )
+        {
+            continue;
+        }
+
+        await _checklistRepository
+            .GuardarRespuestaTextoPorChecklistAsync(
+                idInspeccionActual,
+                "CHK-TRANSPORTE",
+                pregunta.Key,
+                pregunta.Value.Trim(),
+                null
+            );
+
+        Console.WriteLine(
+            $"CHK-TRANSPORTE | {pregunta.Key} = {pregunta.Value}"
+        );
+    }
+
+
+    // =====================================================
+    // NORMALIZAR CUMPLE / NO CUMPLE
+    // =====================================================
+
+    string? NormalizarCumpleCHK(
+        string? valor
+    )
+    {
+        if (
+            string.IsNullOrWhiteSpace(
+                valor
+            )
+        )
+        {
+            return null;
+        }
+
+        return valor
+            .Trim()
+            .ToLowerInvariant() switch
+        {
+            "cumple" =>
+                "CUMPLE",
+
+            "no cumple" =>
+                "NO_CUMPLE",
+
+            "nocumple" =>
+                "NO_CUMPLE",
+
+            "no_cumple" =>
+                "NO_CUMPLE",
+
+            _ =>
+                null
+        };
+    }
+
+
+    // =====================================================
+    // OBTENER VALOR DE UNA RESPUESTA
+    // =====================================================
+
+    string? ObtenerRespuestaCHK(
+        string nombreCampo
+    )
+    {
+        if (
+            documento.RootElement.TryGetProperty(
+                nombreCampo,
+                out var elemento
+            )
+        )
+        {
+            if (
+                elemento.ValueKind
+                == JsonValueKind.String
+            )
+            {
+                return elemento.GetString();
+            }
+
+            if (
+                elemento.ValueKind
+                == JsonValueKind.True
+            )
+            {
+                return "CUMPLE";
+            }
+
+            if (
+                elemento.ValueKind
+                == JsonValueKind.False
+            )
+            {
+                return "NO_CUMPLE";
+            }
+        }
+
+        return null;
+    }
+
+
+    // =====================================================
+    // PREGUNTAS CUMPLE / NO CUMPLE
+    // =====================================================
+
+    var preguntasOpcionCHK =
+        new Dictionary<string, string>
+        {
+            // ---------------------------------------------
+            // CONDICIONES DEL MATERIAL
+            // ---------------------------------------------
+
+            { "MAT-002", "placas" },
+            { "MAT-003", "tarjetaCircuconst" },
+            { "MAT-004", "coincidenDocumentacion" },
+            { "MAT-005", "cartaPorte" },
+            { "MAT-006", "documentacionRem1" },
+            { "MAT-009", "documentacionRem2" },
+            { "MAT-010", "engomadoVerificacion" },
+            { "MAT-012", "engomadoFisico" },
+            { "MAT-013", "cartaPorte" },
+
+            // ---------------------------------------------
+            // OPERADOR
+            // ---------------------------------------------
+
+            { "OP-001", "imss" },
+            { "OP-002", "identificacion" },
+            { "OP-003", "uniforme" },
+            { "OP-004", "presentacion" },
+
+            // ---------------------------------------------
+            // REMOLQUE
+            // ---------------------------------------------
+
+            { "REM-001", "llantas" },
+            { "REM-002", "profundidad" },
+            { "REM-003", "frenos" },
+            { "REM-004", "logoRem1" },
+            { "REM-005", "suspension" },
+
+            // ---------------------------------------------
+            // ENRAMPADO
+            // ---------------------------------------------
+
+            { "ENR-001", "rampa" },
+            { "ENR-002", "lateral" },
+
+            // ---------------------------------------------
+            // ESTADO DEL REMOLQUE
+            //
+            // Se intentan leer estos nombres solamente si
+            // existen en el JSON recibido.
+            // ---------------------------------------------
+
+            { "EST-001", "piso" },
+            { "EST-002", "techo" },
+            { "EST-003", "paredes" },
+            { "EST-004", "olorCaja" },
+            { "EST-005", "limpieza" },
+            { "EST-006", "plagas" },
+            { "EST-007", "devuelveProducto" }
+        };
+
+
+    foreach (
+        var pregunta in preguntasOpcionCHK
+    )
+    {
+        string? valorReact =
+            ObtenerRespuestaCHK(
+                pregunta.Value
+            );
+
+        string? valorSQL =
+            NormalizarCumpleCHK(
+                valorReact
+            );
+
+        if (
+            string.IsNullOrWhiteSpace(
+                valorSQL
+            )
+        )
+        {
+            continue;
+        }
+
+        await _checklistRepository
+            .GuardarRespuestaOpcionPorChecklistAsync(
+                idInspeccionActual,
+                "CHK-TRANSPORTE",
+                pregunta.Key,
+                valorSQL,
+                null
+            );
+
+        Console.WriteLine(
+            $"CHK-TRANSPORTE | {pregunta.Key} = {valorSQL}"
+        );
+    }
+
+
+    Console.WriteLine(
+        "*** DATOS Y RESPUESTAS CHK-TRANSPORTE GUARDADOS ***"
+    );
 }
 
+// -----------------------------------------------------
+// Crear carpeta principal del checklist
+// -----------------------------------------------------
 // -----------------------------------------------------
 // Crear carpeta principal del checklist
 // -----------------------------------------------------
@@ -3066,16 +3621,42 @@ if (tipoChecklist == "CHK-TRANSPORTE")
             )
             {
                 Console.WriteLine(
-                    $"Evidencias recibidas: {evidencias.Count}"
-                );
+    $"Evidencias recibidas: {evidencias.Count}"
+);
 
-                for (
-                    int i = 0;
-                    i < evidencias.Count;
-                    i++
-                )
-                {
-                    var evidencia = evidencias[i];
+// =====================================================
+// OBTENER SIGUIENTE NÚMERO DE EVIDENCIA
+// =====================================================
+
+int numeroEvidencia = 1;
+
+if (idInspeccion.HasValue)
+{
+    int cantidadExistente =
+        await _checklistRepository
+            .ObtenerCantidadEvidenciasAsync(
+                idInspeccion.Value
+            );
+
+    numeroEvidencia =
+        cantidadExistente + 1;
+
+        Console.WriteLine(
+            $"Evidencias existentes: {cantidadExistente}"
+        );
+
+        Console.WriteLine(
+            $"Siguiente número de evidencia: {numeroEvidencia}"
+        );
+    }
+
+    for (
+        int i = 0;
+        i < evidencias.Count;
+        i++
+    )
+    {
+        var evidencia = evidencias[i];
 
                     if (evidencia.Length <= 0)
                     {
@@ -3097,7 +3678,9 @@ if (tipoChecklist == "CHK-TRANSPORTE")
                     }
 
                     string nombreArchivo =
-                        $"{folio}-{i + 1:D2}{extension}";
+                    $"{folio}-{numeroEvidencia:D2}{extension}";
+
+                numeroEvidencia++;
 
                     string rutaArchivo =
                         Path.Combine(
@@ -3146,13 +3729,31 @@ if (tipoChecklist == "CHK-TRANSPORTE")
         nombreArchivo;
 
     await _ftpService.SubirArchivoAsync(
-        rutaArchivo,
-        rutaRemota
-    );
+    rutaArchivo,
+    rutaRemota
+);
+
+Console.WriteLine(
+    $"Evidencia subida al FTP: {rutaRemota}"
+);
+
+// =====================================================
+// REGISTRAR EVIDENCIA EN SQL
+// =====================================================
+
+if (idInspeccion.HasValue)
+{
+    await _checklistRepository
+        .GuardarEvidenciaAsync(
+            idInspeccion.Value,
+            nombreArchivo,
+            rutaRemota
+        );
 
     Console.WriteLine(
-        $"Evidencia subida al FTP: {rutaRemota}"
+        $"Evidencia registrada en SQL: {nombreArchivo}"
     );
+}
 }
 
                     evidenciasGuardadas++;
@@ -3370,7 +3971,7 @@ public async Task<IActionResult> GuardarPDF(
         });
     }
 
-    // =====================================================
+ // =====================================================
 // SG-F-24-01
 // SUBIR PDF DIRECTAMENTE AL FTP
 // =====================================================
@@ -3390,7 +3991,8 @@ if (
     {
         return BadRequest(new
         {
-            mensaje = "No se recibió el área de SG-F-24-01."
+            mensaje =
+                "No se recibió el área de SG-F-24-01."
         });
     }
 
@@ -3512,22 +4114,21 @@ if (
 
     string carpetaSGF2401;
 
-if (
-    areaMateriaPrima.Trim().Equals(
-        "Lata Vacía",
-        StringComparison.OrdinalIgnoreCase
+    if (
+        areaMateriaPrima.Trim().Equals(
+            "Lata Vacía",
+            StringComparison.OrdinalIgnoreCase
+        )
     )
-)
-{
-    carpetaSGF2401 =
-        "LISTA CHEQUEO SG-F-24-01 LATA VACIA";
-}
-else if (
-    areaMateriaPrima.Trim().Equals(
-        "Materias Primas",
-        StringComparison.OrdinalIgnoreCase
-    )
-
+    {
+        carpetaSGF2401 =
+            "LISTA CHEQUEO SG-F-24-01 LATA VACIA";
+    }
+    else if (
+        areaMateriaPrima.Trim().Equals(
+            "Materias Primas",
+            StringComparison.OrdinalIgnoreCase
+        )
     )
     {
         carpetaSGF2401 =
@@ -3550,13 +4151,14 @@ else if (
         "/CHECK LIST/" +
         carpetaSGF2401 +
         "/" +
-        mes +
+        anio +
         "/" +
-        dia +
+        mes +
         "/";
 
     // -------------------------------------------------
-    // Materias Primas necesita carpeta de material
+    // Materias Primas:
+    // Año -> Mes -> Material -> Fecha
     // -------------------------------------------------
 
     if (
@@ -3591,6 +4193,14 @@ else if (
             materialFTP +
             "/";
     }
+
+    // -------------------------------------------------
+    // Fecha del día
+    // -------------------------------------------------
+
+    rutaRemota +=
+        dia +
+        "/";
 
     // -------------------------------------------------
     // Agregar nombre del PDF
