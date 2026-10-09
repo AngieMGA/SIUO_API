@@ -2937,63 +2937,57 @@ if (esTransporte && tieneId)
                         : comentario.Trim()
                 );
 
-            // ---------------------------------------------
-            // Guardar incidencias
-            //
-            // Solo se consideran incidencias cuando la
-            // llanta está marcada como DANADA.
-            // ---------------------------------------------
+          
+// Sincronizar incidencias de la llanta
 
-            if (
-                estadoNormalizado == "DANADA"
-                && llanta.TryGetProperty(
-                    "incidencias",
-                    out var incidenciasElemento
-                )
-                && incidenciasElemento.ValueKind
-                    == JsonValueKind.Array
-            )
-            {
-                foreach (
-                    JsonElement incidenciaElemento
-                    in incidenciasElemento.EnumerateArray()
-                )
-                {
-                    if (
-                        incidenciaElemento.ValueKind
-                        != JsonValueKind.String
-                    )
-                    {
-                        continue;
-                    }
+var incidenciasActuales = new List<string>();
 
-                    string? incidencia =
-                        incidenciaElemento.GetString();
+if (
+    estadoNormalizado == "DANADA"
+    && llanta.TryGetProperty(
+        "incidencias",
+        out var incidenciasElemento
+    )
+    && incidenciasElemento.ValueKind
+        == JsonValueKind.Array
+)
+{
+    foreach (
+        JsonElement incidenciaElemento
+        in incidenciasElemento.EnumerateArray()
+    )
+    {
+        if (
+            incidenciaElemento.ValueKind
+            != JsonValueKind.String
+        )
+        {
+            continue;
+        }
 
-                    if (
-                        string.IsNullOrWhiteSpace(
-                            incidencia
-                        )
-                    )
-                    {
-                        continue;
-                    }
+        string? incidencia =
+            incidenciaElemento.GetString();
 
-                    await _checklistRepository
-                        .GuardarIncidenciaLlantaAsync(
-                            idLlanta,
-                            incidencia
-                                .Trim()
-                                .ToUpperInvariant()
-                        );
-                }
-            }
+        if (string.IsNullOrWhiteSpace(incidencia))
+        {
+            continue;
+        }
+
+        incidenciasActuales.Add(
+            incidencia.Trim().ToUpperInvariant()
+        );
+    }
+}
+
+await _checklistRepository.ReemplazarIncidenciasLlantaAsync(
+    idLlanta,
+    incidenciasActuales
+);
+
         }
     }
 
-    // =====================================================
     // GUARDAR LLANTAS DEL REMOLQUE SENCILLO
-    // =====================================================
 
     if (
         documento.RootElement.TryGetProperty(

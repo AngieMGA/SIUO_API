@@ -1392,64 +1392,64 @@ public async Task<int> GuardarLlantaAsync(
     string? comentario)
 {
     using var connection = _connectionFactory.CreateConnection();
-
     await connection.OpenAsync();
 
     const string consulta = @"
-        INSERT INTO [userchecklist].[LLANTA_INSPECCION]
-        (
-            id_inspeccion,
-            tipo_remolque,
-            numero_llanta,
-            estado,
-            comentario
-        )
-        OUTPUT INSERTED.id_llanta_inspeccion
-        VALUES
-        (
-            @idInspeccion,
-            @tipoRemolque,
-            @numeroLlanta,
-            @estado,
-            @comentario
-        );
+        DECLARE @idLlanta INT;
+
+        SELECT TOP 1
+            @idLlanta = id_llanta_inspeccion
+        FROM [userchecklist].[LLANTA_INSPECCION]
+        WHERE id_inspeccion = @idInspeccion
+          AND tipo_remolque = @tipoRemolque
+          AND numero_llanta = @numeroLlanta
+        ORDER BY id_llanta_inspeccion ASC;
+
+        IF @idLlanta IS NOT NULL
+        BEGIN
+            UPDATE [userchecklist].[LLANTA_INSPECCION]
+            SET estado = @estado,
+                comentario = @comentario
+            WHERE id_llanta_inspeccion = @idLlanta;
+        END
+        ELSE
+        BEGIN
+            INSERT INTO [userchecklist].[LLANTA_INSPECCION]
+            (
+                id_inspeccion,
+                tipo_remolque,
+                numero_llanta,
+                estado,
+                comentario
+            )
+            VALUES
+            (
+                @idInspeccion,
+                @tipoRemolque,
+                @numeroLlanta,
+                @estado,
+                @comentario
+            );
+
+            SET @idLlanta = CONVERT(INT, SCOPE_IDENTITY());
+        END;
+
+        SELECT @idLlanta;
     ";
 
-    using var command = new SqlCommand(
-        consulta,
-        connection
-    );
+    using var command = new SqlCommand(consulta, connection);
 
-    command.Parameters.AddWithValue(
-        "@idInspeccion",
-        idInspeccion
-    );
-
-    command.Parameters.AddWithValue(
-        "@tipoRemolque",
-        tipoRemolque
-    );
-
-    command.Parameters.AddWithValue(
-        "@numeroLlanta",
-        numeroLlanta
-    );
-
-    command.Parameters.AddWithValue(
-        "@estado",
-        estado
-    );
-
+    command.Parameters.AddWithValue("@idInspeccion", idInspeccion);
+    command.Parameters.AddWithValue("@tipoRemolque", tipoRemolque);
+    command.Parameters.AddWithValue("@numeroLlanta", numeroLlanta);
+    command.Parameters.AddWithValue("@estado", estado);
     command.Parameters.AddWithValue(
         "@comentario",
         (object?)comentario ?? DBNull.Value
     );
 
-    return Convert.ToInt32(
-        await command.ExecuteScalarAsync()
-    );
+    return Convert.ToInt32(await command.ExecuteScalarAsync());
 }
-
 
 // =========================================================
 // GUARDAR INCIDENCIA DE UNA LLANTA
@@ -1506,11 +1506,76 @@ public async Task GuardarIncidenciaLlantaAsync(
     await command.ExecuteNonQueryAsync();
 }
 
+public async Task ReemplazarIncidenciasLlantaAsync(
+    int idLlantaInspeccion,
+    IEnumerable<string> incidencias)
+{
+    using var connection = _connectionFactory.CreateConnection();
+    await connection.OpenAsync();
 
-// =========================================================
+    using var transaction = connection.BeginTransaction();
+
+    try
+    {
+        const string eliminar = @"
+            DELETE FROM [userchecklist].[LLANTA_INCIDENCIA]
+            WHERE id_llanta_inspeccion = @idLlantaInspeccion;
+        ";
+
+        using (var commandEliminar = new SqlCommand(
+            eliminar, connection, transaction))
+        {
+            commandEliminar.Parameters.AddWithValue(
+                "@idLlantaInspeccion",
+                idLlantaInspeccion
+            );
+
+            await commandEliminar.ExecuteNonQueryAsync();
+        }
+
+        const string insertar = @"
+            INSERT INTO [userchecklist].[LLANTA_INCIDENCIA]
+            (
+                id_llanta_inspeccion,
+                incidencia
+            )
+            VALUES
+            (
+                @idLlantaInspeccion,
+                @incidencia
+            );
+        ";
+
+        foreach (string incidencia in incidencias)
+        {
+            using var commandInsertar = new SqlCommand(
+                insertar, connection, transaction);
+
+            commandInsertar.Parameters.AddWithValue(
+                "@idLlantaInspeccion",
+                idLlantaInspeccion
+            );
+
+            commandInsertar.Parameters.AddWithValue(
+                "@incidencia",
+                incidencia
+            );
+
+            await commandInsertar.ExecuteNonQueryAsync();
+        }
+
+        transaction.Commit();
+    }
+    catch
+    {
+        transaction.Rollback();
+        throw;
+    }
+}
+
 // GUARDAR DATOS DE RECEPCIÓN
-// CHECKLIST: SG-F-24-01
-// =========================================================
+// CHECKLIST: SG-F-24-014
+
 public async Task GuardarDatosRecepcionAsync(
     int idInspeccion,
     string area,

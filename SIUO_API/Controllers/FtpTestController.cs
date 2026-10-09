@@ -24,9 +24,8 @@ namespace SIUO_API.Controllers
         public async Task<IActionResult> ProbarFTP(
             [FromQuery] string delivery)
         {
-            // -------------------------------------------------
+           
             // VALIDAR DELIVERY
-            // -------------------------------------------------
 
             if (string.IsNullOrWhiteSpace(delivery))
             {
