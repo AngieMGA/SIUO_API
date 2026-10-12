@@ -67,6 +67,109 @@ public async Task<int?> ObtenerInspeccionPorFolioAsync(
 
     return Convert.ToInt32(resultado);
 }
+
+
+
+public async Task<List<Dictionary<string, object?>>> ObtenerHistorialAsync()
+{
+    var historial = new List<Dictionary<string, object?>>();
+
+    using var connection = _connectionFactory.CreateConnection();
+    await connection.OpenAsync();
+
+    const string consulta = @"
+        SELECT
+            i.id_inspeccion,
+            i.folio,
+            i.fecha,
+            i.hora,
+            i.status,
+            i.observaciones_generales,
+            i.nombre_recibe,
+            i.nombre_supervisor,
+            i.identificador_dispositivo,
+            c.codigo AS tipoChecklist,
+            c.nombre AS nombreChecklist,
+
+            (
+                SELECT TOP 1 o.nombre
+                FROM [userchecklist].[INSPECCION_OPERADOR] AS io
+                INNER JOIN [userchecklist].[OPERADOR] AS o
+                    ON o.id_operador = io.id_operador
+                WHERE io.id_inspeccion = i.id_inspeccion
+                ORDER BY io.id_inspeccion_operador DESC
+            ) AS nombreOperador,
+
+            COALESCE(
+                (
+                    SELECT TOP 1 dr.placas_numero
+                    FROM [userchecklist].[DATOS_RECEPCION] AS dr
+                    WHERE dr.id_inspeccion = i.id_inspeccion
+                      AND NULLIF(LTRIM(RTRIM(dr.placas_numero)), '') IS NOT NULL
+                    ORDER BY dr.id_recepcion DESC
+                ),
+                (
+                    SELECT TOP 1 dq.placas
+                    FROM [userchecklist].[DATOS_QUIMICOS] AS dq
+                    WHERE dq.id_inspeccion = i.id_inspeccion
+                      AND NULLIF(LTRIM(RTRIM(dq.placas)), '') IS NOT NULL
+                    ORDER BY dq.id_datos_quimicos DESC
+                ),
+                (
+                    SELECT TOP 1
+                        STUFF(
+                            COALESCE(' / ' + NULLIF(LTRIM(RTRIM(t.placas_tractor)), ''), '') +
+                            COALESCE(' / ' + NULLIF(LTRIM(RTRIM(t.placas_remolque1)), ''), '') +
+                            COALESCE(' / ' + NULLIF(LTRIM(RTRIM(t.placas_remolque2)), ''), ''),
+                            1, 3, ''
+                        )
+                    FROM [userchecklist].[DATOS_TRANSPORTE_CHK] AS dt
+                    INNER JOIN [userchecklist].[TRANSPORTE] AS t
+                        ON t.id_transporte = dt.id_transporte
+                    WHERE dt.id_inspeccion = i.id_inspeccion
+                ),
+                (
+                    SELECT TOP 1
+                        STUFF(
+                            COALESCE(' / ' + NULLIF(LTRIM(RTRIM(t.placas_tractor)), ''), '') +
+                            COALESCE(' / ' + NULLIF(LTRIM(RTRIM(t.placas_remolque1)), ''), '') +
+                            COALESCE(' / ' + NULLIF(LTRIM(RTRIM(t.placas_remolque2)), ''), ''),
+                            1, 3, ''
+                        )
+                    FROM [userchecklist].[DATOS_TRANSPORTE_RH] AS dtr
+                    INNER JOIN [userchecklist].[TRANSPORTE] AS t
+                        ON t.id_transporte = dtr.id_transporte
+                    WHERE dtr.id_inspeccion = i.id_inspeccion
+                )
+            ) AS placasytarjetadecirculacion
+
+        FROM [userchecklist].[INSPECCION] AS i
+        INNER JOIN [userchecklist].[CHECKLIST] AS c
+            ON c.id_checklist = i.id_checklist
+        ORDER BY i.id_inspeccion DESC;
+    ";
+
+    using var command = new SqlCommand(consulta, connection);
+    using var reader = await command.ExecuteReaderAsync();
+
+    while (await reader.ReadAsync())
+    {
+        var registro = new Dictionary<string, object?>();
+
+        for (int i = 0; i < reader.FieldCount; i++)
+        {
+            registro[reader.GetName(i)] =
+                await reader.IsDBNullAsync(i)
+                    ? null
+                    : reader.GetValue(i);
+        }
+
+        historial.Add(registro);
+    }
+
+    return historial;
+}
+
         public async Task<int> GuardarInspeccionAsync(
             string codigoChecklist,
             string folio,

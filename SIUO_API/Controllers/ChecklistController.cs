@@ -21,6 +21,30 @@ namespace SIUO_API.Controllers
             _checklistRepository = checklistRepository;
         }
 
+        
+        // CONSULTAR HISTORIAL COMPARTIDO DESDE SQL SERVER
+        [HttpGet("historial")]
+        public async Task<IActionResult> ObtenerHistorial()
+        {
+            try
+            {
+                var historial =
+                    await _checklistRepository.ObtenerHistorialAsync();
+
+                return Ok(historial);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(
+                    $"ERROR AL CONSULTAR HISTORIAL: {ex.Message}");
+
+                return StatusCode(500, new
+                {
+                    mensaje = "No se pudo consultar el historial."
+                });
+            }
+        }
+
         // GUARDAR CHECKLIST + JSON + EVIDENCIAS
 
         [HttpPost]
