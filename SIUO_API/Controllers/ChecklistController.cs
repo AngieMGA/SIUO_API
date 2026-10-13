@@ -1933,9 +1933,7 @@ Console.WriteLine(
 // [userchecklist].[GRADO_RIESGO]
 //
 // No se guarda un registro para los riesgos no seleccionados.
-// =========================================================
 
-// ---------------------------------------------------------
 // Relacionar cada campo de React con el nombre que se
 // almacenará en GRADO_RIESGO.tipo_riesgo.
 // ---------------------------------------------------------

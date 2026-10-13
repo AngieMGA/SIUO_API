@@ -70,6 +70,7 @@ public async Task<int?> ObtenerInspeccionPorFolioAsync(
 
 
 
+
 public async Task<List<Dictionary<string, object?>>> ObtenerHistorialAsync()
 {
     var historial = new List<Dictionary<string, object?>>();
@@ -140,8 +141,60 @@ public async Task<List<Dictionary<string, object?>>> ObtenerHistorialAsync()
                     INNER JOIN [userchecklist].[TRANSPORTE] AS t
                         ON t.id_transporte = dtr.id_transporte
                     WHERE dtr.id_inspeccion = i.id_inspeccion
+                ),
+                (
+                    SELECT TOP 1 r.valor
+                    FROM [userchecklist].[RESPUESTA] AS r
+                    INNER JOIN [userchecklist].[PREGUNTA] AS p
+                        ON p.id_pregunta = r.id_pregunta
+                    WHERE r.id_inspeccion = i.id_inspeccion
+                      AND p.codigo = 'TR-006'
+                      AND NULLIF(LTRIM(RTRIM(r.valor)), '') IS NOT NULL
+                    ORDER BY r.id_respuesta DESC
                 )
-            ) AS placasytarjetadecirculacion
+            ) AS placasytarjetadecirculacion,
+
+            COALESCE(
+                (
+                    SELECT TOP 1 dt.delivery
+                    FROM [userchecklist].[DATOS_TRANSPORTE_CHK] AS dt
+                    WHERE dt.id_inspeccion = i.id_inspeccion
+                      AND NULLIF(LTRIM(RTRIM(dt.delivery)), '') IS NOT NULL
+                ),
+                (
+                    SELECT TOP 1 r.valor
+                    FROM [userchecklist].[RESPUESTA] AS r
+                    INNER JOIN [userchecklist].[PREGUNTA] AS p
+                        ON p.id_pregunta = r.id_pregunta
+                    WHERE r.id_inspeccion = i.id_inspeccion
+                      AND p.codigo = 'TR-005'
+                      AND NULLIF(LTRIM(RTRIM(r.valor)), '') IS NOT NULL
+                    ORDER BY r.id_respuesta DESC
+                ),
+                (
+                    SELECT TOP 1 dtr.no_delivery
+                    FROM [userchecklist].[DATOS_TRANSPORTE_RH] AS dtr
+                    WHERE dtr.id_inspeccion = i.id_inspeccion
+                      AND NULLIF(LTRIM(RTRIM(dtr.no_delivery)), '') IS NOT NULL
+                )
+            ) AS delivery,
+
+            COALESCE(
+                (
+                    SELECT TOP 1 dr.factura_remision
+                    FROM [userchecklist].[DATOS_RECEPCION] AS dr
+                    WHERE dr.id_inspeccion = i.id_inspeccion
+                      AND NULLIF(LTRIM(RTRIM(dr.factura_remision)), '') IS NOT NULL
+                    ORDER BY dr.id_recepcion DESC
+                ),
+                (
+                    SELECT TOP 1 dq.numero_factura
+                    FROM [userchecklist].[DATOS_QUIMICOS] AS dq
+                    WHERE dq.id_inspeccion = i.id_inspeccion
+                      AND NULLIF(LTRIM(RTRIM(dq.numero_factura)), '') IS NOT NULL
+                    ORDER BY dq.id_datos_quimicos DESC
+                )
+            ) AS facturaRemision
 
         FROM [userchecklist].[INSPECCION] AS i
         INNER JOIN [userchecklist].[CHECKLIST] AS c
