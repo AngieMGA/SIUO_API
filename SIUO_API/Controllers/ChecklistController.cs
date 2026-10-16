@@ -21,7 +21,6 @@ namespace SIUO_API.Controllers
             _checklistRepository = checklistRepository;
         }
 
-        
         // CONSULTAR HISTORIAL COMPARTIDO DESDE SQL SERVER
         [HttpGet("historial")]
         public async Task<IActionResult> ObtenerHistorial()
@@ -44,6 +43,121 @@ namespace SIUO_API.Controllers
                 });
             }
         }
+
+        
+        // CONSULTAR EVIDENCIAS DE UNA INSPECCIÓN
+        [HttpGet("inspeccion/{idInspeccion:int}/evidencias")]
+        public async Task<IActionResult> ObtenerEvidencias(int idInspeccion)
+        {
+            if (idInspeccion <= 0)
+            {
+                return BadRequest(new
+                {
+                    mensaje = "El ID de la inspección no es válido."
+                });
+            }
+
+            try
+            {
+                var evidencias =
+                    await _checklistRepository.ObtenerEvidenciasAsync(idInspeccion);
+
+                return Ok(evidencias);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(
+                    $"ERROR AL CONSULTAR EVIDENCIAS: {ex.Message}");
+
+                return StatusCode(500, new
+                {
+                    mensaje = "No se pudieron consultar las evidencias."
+                });
+            }
+        }
+
+        
+    // =========================================================
+    // MOSTRAR ARCHIVO ORIGINAL DEL FTP
+    // =========================================================
+    [HttpGet("archivo")]
+    public async Task<IActionResult> ObtenerArchivo(
+        [FromQuery] string ruta,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(ruta) ||
+            !ruta.StartsWith(
+                "/Pruebas/",
+                StringComparison.OrdinalIgnoreCase) ||
+            ruta.Contains(".."))
+        {
+            return BadRequest(new
+            {
+                mensaje = "La ruta del archivo no es válida."
+            });
+        }
+
+        string extension = Path.GetExtension(ruta)
+            .ToLowerInvariant();
+
+        string contentType = extension switch
+        {
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".webp" => "image/webp",
+            ".pdf" => "application/pdf",
+            _ => ""
+        };
+
+        if (string.IsNullOrEmpty(contentType))
+        {
+            return BadRequest(new
+            {
+                mensaje = "Tipo de archivo no permitido."
+            });
+        }
+
+        try
+        {
+            Response.ContentType = contentType;
+            Response.Headers.CacheControl = "no-store";
+            Response.Headers["X-Content-Type-Options"] = "nosniff";
+
+            await _ftpService.TransmitirArchivoAsync(
+                ruta,
+                Response.Body,
+                cancellationToken);
+
+            return new EmptyResult();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (FileNotFoundException)
+        {
+            return NotFound(new
+            {
+                mensaje = "No se encontró el archivo en el FTP."
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(
+                $"ERROR AL LEER ARCHIVO FTP: {ex.Message}");
+
+            if (!Response.HasStarted)
+            {
+                return StatusCode(502, new
+                {
+                    mensaje = "No se pudo leer el archivo del FTP."
+                });
+            }
+
+            throw;
+        }
+        
+    }
 
         // GUARDAR CHECKLIST + JSON + EVIDENCIAS
 
@@ -92,9 +206,8 @@ namespace SIUO_API.Controllers
 
             Console.WriteLine($"Folio: {folio}");
 
-// -----------------------------------------------------
+            
 // Obtener tipo de checklist
-// -----------------------------------------------------
 
 string? tipoChecklist = null;
 
@@ -1936,7 +2049,6 @@ Console.WriteLine(
 
 // Relacionar cada campo de React con el nombre que se
 // almacenará en GRADO_RIESGO.tipo_riesgo.
-// ---------------------------------------------------------
 
 var gradosRiesgo2433 = new[]
 {
@@ -3753,9 +3865,7 @@ Console.WriteLine(
     $"Evidencia subida al FTP: {rutaRemota}"
 );
 
-// =====================================================
 // REGISTRAR EVIDENCIA EN SQL
-// =====================================================
 
 if (idInspeccion.HasValue)
 {
@@ -3807,20 +3917,19 @@ if (idInspeccion.HasValue)
             });
         }
 
-
-// =========================================================
 // GUARDAR PDF
-// =========================================================
 
 [HttpPost("pdf")]
+[Consumes("multipart/form-data")]
 public async Task<IActionResult> GuardarPDF(
     [FromForm] string folio,
     [FromForm] string? areaMateriaPrima,
     [FromForm] string tipoChecklist,
     [FromForm] string? delivery,
     [FromForm] string? material,
+    [FromForm] string? lote,
     [FromForm] string? facturaRemision,
-    [FromForm] IFormFile pdf)
+    IFormFile pdf)
 {
     Console.WriteLine("=================================");
     Console.WriteLine("PDF RECIBIDO");
@@ -3829,9 +3938,7 @@ public async Task<IActionResult> GuardarPDF(
         $"TIPO CHECKLIST PDF: [{tipoChecklist}]"
     );
 
-    // -----------------------------------------------------
     // Validar folio
-    // -----------------------------------------------------
 
     if (string.IsNullOrWhiteSpace(folio))
     {
@@ -3841,9 +3948,9 @@ public async Task<IActionResult> GuardarPDF(
         });
     }
 
-    // -----------------------------------------------------
+
     // Validar PDF
-    // -----------------------------------------------------
+    
 
     if (pdf == null || pdf.Length == 0)
     {
@@ -3987,10 +4094,8 @@ public async Task<IActionResult> GuardarPDF(
         });
     }
 
- // =====================================================
 // SG-F-24-01
 // SUBIR PDF DIRECTAMENTE AL FTP
-// =====================================================
 
 if (
     tipoChecklist?.Trim().Equals(
@@ -3999,9 +4104,8 @@ if (
     ) == true
 )
 {
-    // -------------------------------------------------
+
     // Validar área
-    // -------------------------------------------------
 
     if (string.IsNullOrWhiteSpace(areaMateriaPrima))
     {
@@ -4249,9 +4353,7 @@ if (
         $"Ruta FTP: {rutaRemota}"
     );
 
-    // -------------------------------------------------
     // Subir directamente al FTP
-    // -------------------------------------------------
 
     await using Stream stream =
         pdf.OpenReadStream();
@@ -4289,10 +4391,8 @@ if (
     });
 }
 
-    // =====================================================
     // OTROS CHECKLISTS
     // SE CONSERVA EL COMPORTAMIENTO ANTERIOR
-    // =====================================================
 
     string carpetaChecklist;
 

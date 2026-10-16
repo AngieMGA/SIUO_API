@@ -13,10 +13,8 @@ namespace SIUO_API.Services
         }
 
 // OBTENER INSPECCIÓN EXISTENTE POR FOLIO
-// =========================================================
 // Se utiliza principalmente para CHK-TRANSPORTE,
 // ya que VIGILANCIA y APT trabajan sobre la misma inspección.
-// =========================================================
 
 public async Task<int?> ObtenerInspeccionPorFolioAsync(
     string codigoChecklist,
@@ -27,7 +25,7 @@ public async Task<int?> ObtenerInspeccionPorFolioAsync(
 
     await connection.OpenAsync();
 
-    const string consulta = @"
+    const string consulta = @"  
         SELECT TOP 1
             i.id_inspeccion
         FROM [userchecklist].[INSPECCION] i
@@ -67,9 +65,6 @@ public async Task<int?> ObtenerInspeccionPorFolioAsync(
 
     return Convert.ToInt32(resultado);
 }
-
-
-
 
 public async Task<List<Dictionary<string, object?>>> ObtenerHistorialAsync()
 {
@@ -1148,6 +1143,53 @@ public async Task<int> ObtenerCantidadEvidenciasAsync(
     return Convert.ToInt32(resultado);
 }
 
+
+public async Task<List<Dictionary<string, object?>>> ObtenerEvidenciasAsync(
+    int idInspeccion)
+{
+    var evidencias = new List<Dictionary<string, object?>>();
+
+    using var connection = _connectionFactory.CreateConnection();
+    await connection.OpenAsync();
+
+    const string consulta = @"
+        SELECT
+            id_inspeccion,
+            nombre_archivo,
+            ruta_ftp,
+            fecha_registro
+        FROM [userchecklist].[EVIDENCIA]
+        WHERE id_inspeccion = @idInspeccion
+        ORDER BY fecha_registro ASC;
+    ";
+
+    using var command = new SqlCommand(consulta, connection);
+
+    command.Parameters.AddWithValue(
+        "@idInspeccion",
+        idInspeccion
+    );
+
+    using var reader = await command.ExecuteReaderAsync();
+
+    while (await reader.ReadAsync())
+    {
+        var evidencia = new Dictionary<string, object?>();
+
+        for (int i = 0; i < reader.FieldCount; i++)
+        {
+            evidencia[reader.GetName(i)] =
+                await reader.IsDBNullAsync(i)
+                    ? null
+                    : reader.GetValue(i);
+        }
+
+        evidencias.Add(evidencia);
+    }
+
+    return evidencias;
+}
+
 // GUARDAR RESPUESTA DE CONDICIONES DEL MATERIAL
 // Este método guarda una respuesta de tipo texto para una
 // pregunta del checklist.
@@ -1156,7 +1198,6 @@ public async Task<int> ObtenerCantidadEvidenciasAsync(
 //
 // A diferencia de GuardarRespuestaCondicionAsync(bool),
 // este método recibe el valor seleccionado como texto.
-// =========================================================
 
 public async Task GuardarRespuestaOpcionPorChecklistAsync(
     int idInspeccion,

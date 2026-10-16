@@ -132,5 +132,66 @@ namespace SIUO_API.Services
 
             await cliente.Disconnect();
         }
+
+        // =========================================================
+        // TRANSMITIR ARCHIVO FTP SIN CREAR COPIA LOCAL
+        // =========================================================
+
+        public async Task TransmitirArchivoAsync(
+            string rutaRemota,
+            Stream destino,
+            CancellationToken cancellationToken = default)
+        {
+            string servidor =
+                _configuration["FTP:Servidor"]
+                ?? throw new Exception(
+                    "No está configurado el servidor FTP.");
+
+            string usuario =
+                _configuration["FTP:Usuario"]
+                ?? throw new Exception(
+                    "No está configurado el usuario FTP.");
+
+            string password =
+                _configuration["FTP:Password"]
+                ?? throw new Exception(
+                    "No está configurada la contraseña FTP.");
+
+            int puerto =
+                _configuration.GetValue<int>("FTP:Puerto");
+
+            using var cliente = new AsyncFtpClient(
+                servidor,
+                usuario,
+                password,
+                puerto);
+
+            await cliente.Connect();
+
+            try
+            {
+                await using var origen =
+                    await cliente.OpenRead(
+                        rutaRemota,
+                        FtpDataType.Binary,
+                        0,
+                        true,
+                        cancellationToken);
+
+                await origen.CopyToAsync(
+                    destino,
+                    81920,
+                    cancellationToken);
+            }
+            finally
+            {
+                if (cliente.IsConnected)
+                {
+                    await cliente.Disconnect();
+                }
+            }
+        }
+
     }
+
 }
