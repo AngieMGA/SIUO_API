@@ -3929,6 +3929,7 @@ public async Task<IActionResult> GuardarPDF(
     [FromForm] string? material,
     [FromForm] string? lote,
     [FromForm] string? facturaRemision,
+    
     IFormFile pdf)
 {
     Console.WriteLine("=================================");
@@ -3960,15 +3961,11 @@ public async Task<IActionResult> GuardarPDF(
         });
     }
 
-    // -----------------------------------------------------
     // Evitar caracteres/rutas no deseadas
-    // -----------------------------------------------------
 
     folio = Path.GetFileName(folio);
 
-    // -----------------------------------------------------
     // Obtener número de DELIVERY
-    // -----------------------------------------------------
 
     if (string.IsNullOrWhiteSpace(delivery))
     {
