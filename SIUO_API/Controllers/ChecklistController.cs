@@ -3927,9 +3927,8 @@ public async Task<IActionResult> GuardarPDF(
     [FromForm] string tipoChecklist,
     [FromForm] string? delivery,
     [FromForm] string? material,
+     [FromForm] string? facturaRemision,
     [FromForm] string? lote,
-    [FromForm] string? facturaRemision,
-    
     IFormFile pdf)
 {
     Console.WriteLine("=================================");
@@ -4088,6 +4087,95 @@ public async Task<IActionResult> GuardarPDF(
 
             rutaFTP =
                 rutaRemota
+        });
+    }
+
+    // SG-F-24-33
+    // PDF DIRECTAMENTE AL FTP, SIN COPIA LOCAL
+    // Nombre del archivo: número de lote
+
+    if (
+        tipoChecklist?.Trim().Equals(
+            "SG-F-24-33",
+            StringComparison.OrdinalIgnoreCase
+        ) == true
+    )
+    {
+        if (string.IsNullOrWhiteSpace(lote))
+        {
+            return BadRequest(new
+            {
+                mensaje = "No se recibió el número de lote."
+            });
+        }
+
+        // Validar el nombre del lote para evitar rutas no deseadas
+        string numeroLote = Path.GetFileName(lote.Trim());
+
+        foreach (char caracter in Path.GetInvalidFileNameChars())
+        {
+            numeroLote = numeroLote.Replace(caracter, '_');
+        }
+
+        if (string.IsNullOrWhiteSpace(numeroLote))
+        {
+            return BadRequest(new
+            {
+                mensaje = "El número de lote no es válido."
+            });
+        }
+
+        // Fecha actual del servidor
+        DateTime fechaActual = DateTime.Now;
+
+        string anio = fechaActual.ToString("yyyy");
+
+        var cultura = new System.Globalization.CultureInfo("es-MX");
+        string nombreMes = fechaActual.ToString("MMMM", cultura);
+
+        nombreMes =
+            char.ToUpper(nombreMes[0], cultura) +
+            nombreMes.Substring(1);
+
+        string mes = $"{fechaActual.Month}.{nombreMes}";
+        string dia = fechaActual.ToString("dd.MM.yyyy");
+
+        // Ruta del PDF dentro del FTP
+        string nombreArchivo = $"{numeroLote}.pdf";
+
+        string rutaRemota =
+            "/CHECK LIST/" +
+            "RECEPCIÓN DE PRODUCTOS QUIMICOS Y OTROS/" +
+            anio + "/" +
+            mes + "/" +
+            dia + "/" +
+            nombreArchivo;
+
+        Console.WriteLine("=================================");
+        Console.WriteLine("SG-F-24-33 - PDF FTP");
+        Console.WriteLine($"Lote: {numeroLote}");
+        Console.WriteLine($"Ruta FTP: {rutaRemota}");
+
+        // Subir directamente al FTP, sin guardar localmente
+        await using Stream stream = pdf.OpenReadStream();
+
+        await _ftpService.SubirStreamAsync(
+            stream,
+            rutaRemota
+        );
+
+        Console.WriteLine(
+            $"PDF SG-F-24-33 subido al FTP: {rutaRemota}"
+        );
+
+        Console.WriteLine("=================================");
+
+        return Ok(new
+        {
+            mensaje = "PDF SG-F-24-33 subido correctamente al FTP",
+            lote = numeroLote,
+            archivo = nombreArchivo,
+            rutaFTP = rutaRemota
         });
     }
 
