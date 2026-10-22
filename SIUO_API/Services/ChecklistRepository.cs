@@ -392,7 +392,8 @@ public async Task<List<Dictionary<string, object?>>> ObtenerHistorialAsync()
             }
         }
 
-        public async Task GuardarDatosQuimicosAsync(
+
+public async Task GuardarDatosQuimicosAsync(
     int idInspeccion,
     string? producto,
     DateTime? fechaRecepcion,
@@ -403,7 +404,8 @@ public async Task<List<Dictionary<string, object?>>> ObtenerHistorialAsync()
     string? numeroSellos,
     string? numeroFactura,
     string? turno,
-    string? tripulacion)
+    string? tripulacion,
+    string? loteQuimico)
 {
     using var connection = _connectionFactory.CreateConnection();
     await connection.OpenAsync();
@@ -421,7 +423,8 @@ public async Task<List<Dictionary<string, object?>>> ObtenerHistorialAsync()
             numero_sellos,
             numero_factura,
             turno,
-            tripulacion
+            tripulacion,
+            lote_quimico
         )
         VALUES
         (
@@ -435,60 +438,30 @@ public async Task<List<Dictionary<string, object?>>> ObtenerHistorialAsync()
             @numeroSellos,
             @numeroFactura,
             @turno,
-            @tripulacion
+            @tripulacion,
+            @loteQuimico
         );
     ";
-
-    
 
     using var command = new SqlCommand(consulta, connection);
 
     command.Parameters.AddWithValue("@idInspeccion", idInspeccion);
-    command.Parameters.AddWithValue(
-        "@producto",
-        (object?)producto ?? DBNull.Value
-    );
-    command.Parameters.AddWithValue(
-        "@fechaRecepcion",
-        (object?)fechaRecepcion?.Date ?? DBNull.Value
-    );
-    command.Parameters.AddWithValue(
-        "@fechaTermino",
-        (object?)fechaTermino?.Date ?? DBNull.Value
-    );
-    command.Parameters.AddWithValue(
-        "@placas",
-        (object?)placas ?? DBNull.Value
-    );
-    command.Parameters.AddWithValue(
-        "@horaRecepcion",
-        (object?)horaRecepcion ?? DBNull.Value
-    );
-    command.Parameters.AddWithValue(
-        "@horaTermino",
-        (object?)horaTermino ?? DBNull.Value
-    );
-    command.Parameters.AddWithValue(
-        "@numeroSellos",
-        (object?)numeroSellos ?? DBNull.Value
-    );
-    command.Parameters.AddWithValue(
-        "@numeroFactura",
-        (object?)numeroFactura ?? DBNull.Value
-    );
-    command.Parameters.AddWithValue(
-        "@turno",
-        (object?)turno ?? DBNull.Value
-    );
-    command.Parameters.AddWithValue(
-        "@tripulacion",
-        (object?)tripulacion ?? DBNull.Value
-    );
+    command.Parameters.AddWithValue("@producto", (object?)producto ?? DBNull.Value);
+    command.Parameters.AddWithValue("@fechaRecepcion", (object?)fechaRecepcion?.Date ?? DBNull.Value);
+    command.Parameters.AddWithValue("@fechaTermino", (object?)fechaTermino?.Date ?? DBNull.Value);
+    command.Parameters.AddWithValue("@placas", (object?)placas ?? DBNull.Value);
+    command.Parameters.AddWithValue("@horaRecepcion", (object?)horaRecepcion ?? DBNull.Value);
+    command.Parameters.AddWithValue("@horaTermino", (object?)horaTermino ?? DBNull.Value);
+    command.Parameters.AddWithValue("@numeroSellos", (object?)numeroSellos ?? DBNull.Value);
+    command.Parameters.AddWithValue("@numeroFactura", (object?)numeroFactura ?? DBNull.Value);
+    command.Parameters.AddWithValue("@turno", (object?)turno ?? DBNull.Value);
+    command.Parameters.AddWithValue("@tripulacion", (object?)tripulacion ?? DBNull.Value);
+    command.Parameters.AddWithValue("@loteQuimico", (object?)loteQuimico ?? DBNull.Value);
 
     await command.ExecuteNonQueryAsync();
-        }
+}
 
-                public async Task<int> ObtenerOCrearOperadorAsync(
+    public async Task<int> ObtenerOCrearOperadorAsync(
             string nombreOperador)
         {
             using var connection = _connectionFactory.CreateConnection();
@@ -3241,6 +3214,186 @@ public async Task GuardarDatosTransporteRHAsync(
 }
 
 
+public async Task<string> GenerarFolioAsync(string prefijo)
+{
+    if (string.IsNullOrWhiteSpace(prefijo))
+    {
+        throw new ArgumentException(
+            "El prefijo del folio es obligatorio.",
+            nameof(prefijo)
+        );
+    }
+
+    prefijo = prefijo.Trim().ToUpperInvariant();
+
+    
+string[] prefijosPermitidos =
+{
+    "RT",       // SG-F-24-06
+    "RMP-LV",   // SG-F-24-01: Lata Vacía
+    "RMP-MP",   // SG-F-24-01: Materias Primas
+    "RH",       // RH-F-01-21
+    "RPQ"       // SG-F-24-33
+};
+
+if (Array.IndexOf(prefijosPermitidos, prefijo) < 0)
+{
+    throw new ArgumentException(
+        "El prefijo del checklist no está autorizado."
+    );
+}
+
+    using var connection =
+        _connectionFactory.CreateConnection();
+
+    await connection.OpenAsync();
+
+    using var transaction =
+        connection.BeginTransaction(
+            System.Data.IsolationLevel.Serializable
+        );
+
+    try
+    {
+        const string consultaFecha = @"
+            SELECT CONVERT(VARCHAR(6), GETDATE(), 12);
+        ";
+
+        string fecha;
+
+        using (var commandFecha = new SqlCommand(
+            consultaFecha,
+            connection,
+            transaction))
+        {
+            fecha = Convert.ToString(
+                await commandFecha.ExecuteScalarAsync()
+            )!;
+        }
+
+        int consecutivo;
+
+        const string consultaBuscar = @"
+            SELECT ultimo_consecutivo
+            FROM [userchecklist].[FOLIO_CONSECUTIVO]
+                WITH (UPDLOCK, HOLDLOCK)
+            WHERE prefijo = @prefijo
+              AND fecha = @fecha;
+        ";
+
+        using (var commandBuscar = new SqlCommand(
+            consultaBuscar,
+            connection,
+            transaction))
+        {
+            commandBuscar.Parameters.AddWithValue(
+                "@prefijo",
+                prefijo
+            );
+
+            commandBuscar.Parameters.AddWithValue(
+                "@fecha",
+                fecha
+            );
+
+            object? resultado =
+                await commandBuscar.ExecuteScalarAsync();
+
+            if (resultado != null && resultado != DBNull.Value)
+            {
+                consecutivo = Convert.ToInt32(resultado) + 1;
+
+                const string consultaActualizar = @"
+                    UPDATE [userchecklist].[FOLIO_CONSECUTIVO]
+                    SET ultimo_consecutivo = @consecutivo
+                    WHERE prefijo = @prefijo
+                      AND fecha = @fecha;
+                ";
+
+                using var commandActualizar = new SqlCommand(
+                    consultaActualizar,
+                    connection,
+                    transaction
+                );
+
+                commandActualizar.Parameters.AddWithValue(
+                    "@consecutivo",
+                    consecutivo
+                );
+
+                commandActualizar.Parameters.AddWithValue(
+                    "@prefijo",
+                    prefijo
+                );
+
+                commandActualizar.Parameters.AddWithValue(
+                    "@fecha",
+                    fecha
+                );
+
+                await commandActualizar.ExecuteNonQueryAsync();
+            }
+            else
+            {
+                consecutivo = 1;
+
+                const string consultaInsertar = @"
+                    INSERT INTO [userchecklist].[FOLIO_CONSECUTIVO]
+                    (
+                        prefijo,
+                        fecha,
+                        ultimo_consecutivo
+                    )
+                    VALUES
+                    (
+                        @prefijo,
+                        @fecha,
+                        @consecutivo
+                    );
+                ";
+
+                using var commandInsertar = new SqlCommand(
+                    consultaInsertar,
+                    connection,
+                    transaction
+                );
+
+                commandInsertar.Parameters.AddWithValue(
+                    "@prefijo",
+                    prefijo
+                );
+
+                commandInsertar.Parameters.AddWithValue(
+                    "@fecha",
+                    fecha
+                );
+
+                commandInsertar.Parameters.AddWithValue(
+                    "@consecutivo",
+                    consecutivo
+                );
+
+                await commandInsertar.ExecuteNonQueryAsync();
+            }
+        }
+
+        string folio = string.Format(
+            "{0}-{1}-{2:D3}",
+            prefijo,
+            fecha,
+            consecutivo
+        );
+
+        transaction.Commit();
+
+        return folio;
+    }
+    catch
+    {
+        transaction.Rollback();
+        throw;
+    }
+}
     }
 
 }

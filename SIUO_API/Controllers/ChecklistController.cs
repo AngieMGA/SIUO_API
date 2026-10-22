@@ -44,6 +44,47 @@ namespace SIUO_API.Controllers
             }
         }
 
+        // GENERAR FOLIO CENTRALIZADO
+[HttpGet("folio")]
+public async Task<IActionResult> GenerarFolio(
+    [FromQuery] string prefijo)
+{
+    try
+    {
+        if (string.IsNullOrWhiteSpace(prefijo))
+        {
+            return BadRequest(new
+            {
+                mensaje = "El prefijo del folio es obligatorio."
+            });
+        }
+
+        string folio =
+            await _checklistRepository.GenerarFolioAsync(prefijo);
+
+        return Ok(new
+        {
+            folio = folio
+        });
+    }
+    catch (ArgumentException ex)
+    {
+        return BadRequest(new
+        {
+            mensaje = ex.Message
+        });
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine(
+            $"ERROR AL GENERAR FOLIO: {ex.Message}");
+
+        return StatusCode(500, new
+        {
+            mensaje = "No se pudo generar el folio."
+        });
+    }
+}
         
         // CONSULTAR EVIDENCIAS DE UNA INSPECCIÓN
         [HttpGet("inspeccion/{idInspeccion:int}/evidencias")]
@@ -1826,6 +1867,7 @@ Console.WriteLine(
     DateTime? fechaTermino = null;
 
     string? producto = null;
+    string? loteQuimico = null;
     string? placas = null;
     string? horaRecepcion = null;
     string? horaTermino = null;
@@ -1853,6 +1895,9 @@ Console.WriteLine(
 
     // Producto
     producto = ObtenerTexto("nombreProducto");
+
+    // Lote del químico
+    loteQuimico = ObtenerTexto("loteQuimico");      
 
     // Fecha de recepción
     string? fechaRecepcionTexto =
@@ -1917,7 +1962,8 @@ Console.WriteLine(
         numeroSellos,
         numeroFactura,
         turno,
-        tripulacion
+        tripulacion,
+        loteQuimico
     );
 
 // GUARDAR Y RELACIONAR OPERADOR DE SG-F-24-33
@@ -3643,12 +3689,9 @@ if (
     );
 }
 
-// -----------------------------------------------------
 // Crear carpeta principal del checklist
 // -----------------------------------------------------
-// -----------------------------------------------------
 // Crear carpeta principal del checklist
-// -----------------------------------------------------
 
 string carpetaBase;
 
@@ -3693,11 +3736,8 @@ Directory.CreateDirectory(
     carpetaBase
 );
 
-
-// -----------------------------------------------------
 // Crear carpeta de evidencias
 // SOLO CHK-TRANSPORTE
-// -----------------------------------------------------
 
 string? carpetaEvidencias = null;
 

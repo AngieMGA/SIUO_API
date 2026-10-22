@@ -122,9 +122,7 @@ app.UseAuthentication();
 
 app.UseAuthorization();
 
-// ==========================================
 // CONTROLLERS
-// ==========================================
 
 app.MapControllers();
 
