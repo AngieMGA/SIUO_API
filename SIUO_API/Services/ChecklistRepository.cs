@@ -1,16 +1,17 @@
 using Microsoft.Data.SqlClient;
+using System.Data;
 
 namespace SIUO_API.Services
 {
     public class ChecklistRepository
     {
-        private readonly ChecklistConnectionFactory _connectionFactory;
+        private readonly SqlConnectionFactory _connectionFactory;
 
-        public ChecklistRepository(
-            ChecklistConnectionFactory connectionFactory)
-        {
-            _connectionFactory = connectionFactory;
-        }
+       public ChecklistRepository(
+    SqlConnectionFactory connectionFactory)
+{
+    _connectionFactory = connectionFactory;
+}
 
 // OBTENER INSPECCIÓN EXISTENTE POR FOLIO
 // Se utiliza principalmente para CHK-TRANSPORTE,
@@ -237,9 +238,52 @@ public async Task<List<Dictionary<string, object?>>> ObtenerHistorialAsync()
 
             try
             {
-                // =====================================================
-                // OBTENER CHECKLIST Y VERSIÓN ACTIVA
-                // =====================================================
+// EVITAR INSERCIONES CONCURRENTES DE CHK-TRANSPORTE
+// No reutilizar una inspección únicamente porque coincida el folio.
+if (codigoChecklist.Equals(
+    "CHK-TRANSPORTE",
+    StringComparison.OrdinalIgnoreCase))
+{
+    using (var bloqueo = new SqlCommand(
+        "sp_getapplock",
+        connection,
+        transaction))
+    {
+        bloqueo.CommandType = CommandType.StoredProcedure;
+
+        bloqueo.Parameters.AddWithValue(
+            "@Resource",
+            $"CHK-TRANSPORTE:{folio.Trim()}"
+        );
+
+        bloqueo.Parameters.AddWithValue(
+            "@LockMode",
+            "Exclusive"
+        );
+
+        bloqueo.Parameters.AddWithValue(
+            "@LockOwner",
+            "Transaction"
+        );
+
+        bloqueo.Parameters.AddWithValue(
+            "@LockTimeout",
+            15000
+        );
+
+        var resultadoBloqueo = Convert.ToInt32(
+            await bloqueo.ExecuteScalarAsync()
+        );
+
+        if (resultadoBloqueo < 0)
+        {
+            throw new InvalidOperationException(
+                $"No se pudo bloquear el folio {folio}."
+            );
+        }
+    }
+}
+            // OBTENER CHECKLIST Y VERSIÓN ACTIVA
 
                 const string consultaVersion = @"
                     SELECT TOP 1
@@ -3226,7 +3270,7 @@ public async Task<string> GenerarFolioAsync(string prefijo)
 
     prefijo = prefijo.Trim().ToUpperInvariant();
 
-    
+
 string[] prefijosPermitidos =
 {
     "RT",       // SG-F-24-06

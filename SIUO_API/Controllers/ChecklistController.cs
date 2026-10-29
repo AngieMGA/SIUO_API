@@ -44,47 +44,47 @@ namespace SIUO_API.Controllers
             }
         }
 
-        // GENERAR FOLIO CENTRALIZADO
-[HttpGet("folio")]
-public async Task<IActionResult> GenerarFolio(
-    [FromQuery] string prefijo)
-{
-    try
+    // GENERAR FOLIO CENTRALIZADO
+    [HttpGet("folio")]
+    public async Task<IActionResult> GenerarFolio(
+        [FromQuery] string prefijo)
     {
-        if (string.IsNullOrWhiteSpace(prefijo))
+        try
+        {
+            if (string.IsNullOrWhiteSpace(prefijo))
+            {
+                return BadRequest(new
+                {
+                    mensaje = "El prefijo del folio es obligatorio."
+                });
+            }
+
+            string folio =
+                await _checklistRepository.GenerarFolioAsync(prefijo);
+
+            return Ok(new
+            {
+                folio = folio
+            });
+        }
+        catch (ArgumentException ex)
         {
             return BadRequest(new
             {
-                mensaje = "El prefijo del folio es obligatorio."
+                mensaje = ex.Message
             });
         }
-
-        string folio =
-            await _checklistRepository.GenerarFolioAsync(prefijo);
-
-        return Ok(new
+        catch (Exception ex)
         {
-            folio = folio
-        });
-    }
-    catch (ArgumentException ex)
-    {
-        return BadRequest(new
-        {
-            mensaje = ex.Message
-        });
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine(
-            $"ERROR AL GENERAR FOLIO: {ex.Message}");
+            Console.WriteLine(
+                $"ERROR AL GENERAR FOLIO: {ex.Message}");
 
-        return StatusCode(500, new
-        {
-            mensaje = "No se pudo generar el folio."
-        });
+            return StatusCode(500, new
+            {
+                mensaje = "No se pudo generar el folio."
+            });
+        }
     }
-}
         
         // CONSULTAR EVIDENCIAS DE UNA INSPECCIÓN
         [HttpGet("inspeccion/{idInspeccion:int}/evidencias")]
@@ -236,188 +236,217 @@ public async Task<IActionResult> GenerarFolio(
                 folio = folioElemento.GetString();
             }
 
-            if (string.IsNullOrWhiteSpace(folio))
-            {
-                folio =
-                    $"SIN-FOLIO-{DateTime.Now:yyyyMMddHHmmss}";
-            }
-
-            // Evitar caracteres/rutas no deseadas
-            folio = Path.GetFileName(folio);
-
-            Console.WriteLine($"Folio: {folio}");
-
             
-// Obtener tipo de checklist
-
-string? tipoChecklist = null;
-
-if (documento.RootElement.TryGetProperty(
-    "tipoChecklist",
-    out var tipoChecklistElemento))
+if (string.IsNullOrWhiteSpace(folio))
 {
-    tipoChecklist =
-        tipoChecklistElemento.GetString();
+    return BadRequest(new
+    {
+        mensaje = "El checklist no contiene un folio válido. Genera el folio desde la API e inténtalo nuevamente."
+    });
 }
 
-// GUARDAR INSPECCIÓN PRINCIPAL EN SQL SERVER
+    // Evitar caracteres/rutas no deseadas
+    folio = Path.GetFileName(folio);
 
-int? idInspeccion = null;
+    if (string.IsNullOrWhiteSpace(folio))
+    {
+        return BadRequest(new
+        {
+            mensaje = "El folio recibido no es válido."
+        });
+    }
 
-if (!string.IsNullOrWhiteSpace(tipoChecklist))
-{
+    Console.WriteLine($"Folio: {folio}");
+            
+    // Obtener tipo de checklist
 
-string? observacionesGenerales = null;
-string? nombreRecibe = null;
-string? nombreSupervisor = null;
+    string? tipoChecklist = null;
 
-// =========================================================
-// CAMPOS GENERALES SG-F-24-01
-// =========================================================
-
-if (documento.RootElement.TryGetProperty(
-    "observacionesSGF2401",
-    out var observaciones2401Elemento)
-    && observaciones2401Elemento.ValueKind == JsonValueKind.String)
-{
-    observacionesGenerales =
-        observaciones2401Elemento.GetString();
-}
-
-// =========================================================
-// CAMPOS GENERALES SG-F-24-33
-// =========================================================
-
-if (string.IsNullOrWhiteSpace(observacionesGenerales))
-{
     if (documento.RootElement.TryGetProperty(
-        "comentarios2433",
-        out var comentariosElemento)
-        && comentariosElemento.ValueKind == JsonValueKind.String)
+        "tipoChecklist",
+        out var tipoChecklistElemento))
+    {
+        tipoChecklist =
+            tipoChecklistElemento.GetString();
+    }
+
+    // GUARDAR INSPECCIÓN PRINCIPAL EN SQL SERVER
+
+    int? idInspeccion = null;
+
+    if (!string.IsNullOrWhiteSpace(tipoChecklist))
+    {
+
+    string? observacionesGenerales = null;
+    string? nombreRecibe = null;
+    string? nombreSupervisor = null;
+
+    // CAMPOS GENERALES SG-F-24-01
+
+    if (documento.RootElement.TryGetProperty(
+        "observacionesSGF2401",
+        out var observaciones2401Elemento)
+        && observaciones2401Elemento.ValueKind == JsonValueKind.String)
     {
         observacionesGenerales =
-            comentariosElemento.GetString();
+            observaciones2401Elemento.GetString();
     }
-}
 
-// =========================================================
-// NOMBRE DE QUIEN RECIBE
-// =========================================================
+    // =========================================================
+    // CAMPOS GENERALES SG-F-24-33
+    // =========================================================
 
-if (documento.RootElement.TryGetProperty(
-    "nombreRecibe",
-    out var recibe2401Elemento)
-    && recibe2401Elemento.ValueKind == JsonValueKind.String)
-{
-    nombreRecibe =
-        recibe2401Elemento.GetString();
-}
+    if (string.IsNullOrWhiteSpace(observacionesGenerales))
+    {
+        if (documento.RootElement.TryGetProperty(
+            "comentarios2433",
+            out var comentariosElemento)
+            && comentariosElemento.ValueKind == JsonValueKind.String)
+        {
+            observacionesGenerales =
+                comentariosElemento.GetString();
+        }
+    }
 
-if (string.IsNullOrWhiteSpace(nombreRecibe))
-{
+    // =========================================================
+    // NOMBRE DE QUIEN RECIBE
+    // =========================================================
+
     if (documento.RootElement.TryGetProperty(
-        "nombreRecibe2433",
-        out var recibe2433Elemento)
-        && recibe2433Elemento.ValueKind == JsonValueKind.String)
+        "nombreRecibe",
+        out var recibe2401Elemento)
+        && recibe2401Elemento.ValueKind == JsonValueKind.String)
     {
         nombreRecibe =
-            recibe2433Elemento.GetString();
+            recibe2401Elemento.GetString();
     }
-}
 
-// =========================================================
-// NOMBRE DEL SUPERVISOR
-// =========================================================
+    if (string.IsNullOrWhiteSpace(nombreRecibe))
+    {
+        if (documento.RootElement.TryGetProperty(
+            "nombreRecibe2433",
+            out var recibe2433Elemento)
+            && recibe2433Elemento.ValueKind == JsonValueKind.String)
+        {
+            nombreRecibe =
+                recibe2433Elemento.GetString();
+        }
+    }
 
-if (documento.RootElement.TryGetProperty(
-    "nombreSupervisor",
-    out var supervisor2401Elemento)
-    && supervisor2401Elemento.ValueKind == JsonValueKind.String)
-{
-    nombreSupervisor =
-        supervisor2401Elemento.GetString();
-}
+    // =========================================================
+    // NOMBRE DEL SUPERVISOR
+    // =========================================================
 
-if (string.IsNullOrWhiteSpace(nombreSupervisor))
-{
     if (documento.RootElement.TryGetProperty(
-        "nombreSupervisor2433",
-        out var supervisor2433Elemento)
-        && supervisor2433Elemento.ValueKind == JsonValueKind.String)
+        "nombreSupervisor",
+        out var supervisor2401Elemento)
+        && supervisor2401Elemento.ValueKind == JsonValueKind.String)
     {
         nombreSupervisor =
-            supervisor2433Elemento.GetString();
+            supervisor2401Elemento.GetString();
     }
-}
 
-        DateTime fechaInspeccion = DateTime.Now.Date;
-        TimeSpan horaInspeccion = DateTime.Now.TimeOfDay;
-
-        if (documento.RootElement.TryGetProperty(
-            "fecha",
-            out var fechaElemento) &&
-            fechaElemento.ValueKind == JsonValueKind.String &&
-            DateTime.TryParse(
-                fechaElemento.GetString(),
-                out var fechaParseada))
-        {
-            fechaInspeccion = fechaParseada.Date;
-        }
-
-        string? status = null;
-
-if (
-    tipoChecklist.Equals(
-        "CHK-TRANSPORTE",
-        StringComparison.OrdinalIgnoreCase
-    )
-    ||
-    tipoChecklist.Equals(
-        "RH-F-01-21",
-        StringComparison.OrdinalIgnoreCase
-    )
-)
-{
-    status = "PENDIENTE";
-}
-
-string? identificadorDispositivo = null;
-
-if (documento.RootElement.TryGetProperty(
-    "identificadorDispositivo",
-    out var dispositivoElemento)
-    && dispositivoElemento.ValueKind == JsonValueKind.String)
-{
-    identificadorDispositivo =
-        dispositivoElemento.GetString();
-}
-
-// =========================================================
-// GUARDAR / RECUPERAR INSPECCIÓN
-// =========================================================
-
-if (
-    tipoChecklist.Equals(
-        "CHK-TRANSPORTE",
-        StringComparison.OrdinalIgnoreCase
-    )
-)
-{
-    int? inspeccionEncontrada =
-        await _checklistRepository
-            .ObtenerInspeccionPorFolioAsync(
-                "CHK-TRANSPORTE",
-                folio
-            );
-
-    if (inspeccionEncontrada.HasValue)
+    if (string.IsNullOrWhiteSpace(nombreSupervisor))
     {
-        idInspeccion =
-            inspeccionEncontrada.Value;
+        if (documento.RootElement.TryGetProperty(
+            "nombreSupervisor2433",
+            out var supervisor2433Elemento)
+            && supervisor2433Elemento.ValueKind == JsonValueKind.String)
+        {
+            nombreSupervisor =
+                supervisor2433Elemento.GetString();
+        }
+    }
 
-        Console.WriteLine(
-            $"CHK-TRANSPORTE existente. Se reutiliza ID: {idInspeccion}"
-        );
+            DateTime fechaInspeccion = DateTime.Now.Date;
+            TimeSpan horaInspeccion = DateTime.Now.TimeOfDay;
+
+            if (documento.RootElement.TryGetProperty(
+                "fecha",
+                out var fechaElemento) &&
+                fechaElemento.ValueKind == JsonValueKind.String &&
+                DateTime.TryParse(
+                    fechaElemento.GetString(),
+                    out var fechaParseada))
+            {
+                fechaInspeccion = fechaParseada.Date;
+            }
+
+            string? status = null;
+
+    if (
+        tipoChecklist.Equals(
+            "CHK-TRANSPORTE",
+            StringComparison.OrdinalIgnoreCase
+        )
+        ||
+        tipoChecklist.Equals(
+            "RH-F-01-21",
+            StringComparison.OrdinalIgnoreCase
+        )
+    )
+    {
+        status = "PENDIENTE";
+    }
+
+    string? identificadorDispositivo = null;
+
+    if (documento.RootElement.TryGetProperty(
+        "identificadorDispositivo",
+        out var dispositivoElemento)
+        && dispositivoElemento.ValueKind == JsonValueKind.String)
+    {
+        identificadorDispositivo =
+            dispositivoElemento.GetString();
+    }
+
+    // =========================================================
+    // GUARDAR / RECUPERAR INSPECCIÓN
+    // =========================================================
+
+    if (
+        tipoChecklist.Equals(
+            "CHK-TRANSPORTE",
+            StringComparison.OrdinalIgnoreCase
+        )
+    )
+    {
+        int? inspeccionEncontrada =
+            await _checklistRepository
+                .ObtenerInspeccionPorFolioAsync(
+                    "CHK-TRANSPORTE",
+                    folio
+                );
+
+        if (inspeccionEncontrada.HasValue)
+        {
+            idInspeccion =
+                inspeccionEncontrada.Value;
+
+            Console.WriteLine(
+                $"CHK-TRANSPORTE existente. Se reutiliza ID: {idInspeccion}"
+            );
+        }
+        else
+        {
+            idInspeccion =
+                await _checklistRepository
+                    .GuardarInspeccionAsync(
+                        tipoChecklist,
+                        folio,
+                        fechaInspeccion,
+                        horaInspeccion,
+                        status,
+                        observacionesGenerales,
+                        nombreRecibe,
+                        nombreSupervisor,
+                        identificadorDispositivo
+                    );
+
+            Console.WriteLine(
+                $"Nueva inspección CHK-TRANSPORTE guardada. ID: {idInspeccion}"
+            );
+        }
     }
     else
     {
@@ -435,27 +464,6 @@ if (
                     identificadorDispositivo
                 );
 
-        Console.WriteLine(
-            $"Nueva inspección CHK-TRANSPORTE guardada. ID: {idInspeccion}"
-        );
-    }
-}
-else
-{
-    idInspeccion =
-        await _checklistRepository
-            .GuardarInspeccionAsync(
-                tipoChecklist,
-                folio,
-                fechaInspeccion,
-                horaInspeccion,
-                status,
-                observacionesGenerales,
-                nombreRecibe,
-                nombreSupervisor,
-                identificadorDispositivo
-            );
-
     Console.WriteLine(
         $"Inspección guardada en SQL. ID: {idInspeccion}"
     );
@@ -463,9 +471,7 @@ else
 
 }
 
-// -----------------------------------------------------
 // Obtener área de materia prima
-// -----------------------------------------------------
 
 string? areaMateriaPrima = null;
 
