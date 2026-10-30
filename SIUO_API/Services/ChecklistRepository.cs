@@ -5,10 +5,10 @@ namespace SIUO_API.Services
 {
     public class ChecklistRepository
     {
-        private readonly SqlConnectionFactory _connectionFactory;
+       private readonly ChecklistConnectionFactory _connectionFactory;
 
-       public ChecklistRepository(
-    SqlConnectionFactory connectionFactory)
+public ChecklistRepository(
+    ChecklistConnectionFactory connectionFactory)
 {
     _connectionFactory = connectionFactory;
 }
@@ -218,6 +218,39 @@ public async Task<List<Dictionary<string, object?>>> ObtenerHistorialAsync()
 
     return historial;
 }
+
+
+public async Task<bool> ActualizarEstadoInspeccionAsync(
+    int idInspeccion,
+    string status)
+{
+    using var connection = _connectionFactory.CreateConnection();
+
+    await connection.OpenAsync();
+
+    using var command = connection.CreateCommand();
+
+    command.CommandText = @"
+        UPDATE [userchecklist].[INSPECCION]
+        SET status = @status
+        WHERE id_inspeccion = @idInspeccion;
+    ";
+
+    var parametroStatus = command.CreateParameter();
+    parametroStatus.ParameterName = "@status";
+    parametroStatus.Value = status;
+    command.Parameters.Add(parametroStatus);
+
+    var parametroId = command.CreateParameter();
+    parametroId.ParameterName = "@idInspeccion";
+    parametroId.Value = idInspeccion;
+    command.Parameters.Add(parametroId);
+
+    int filasAfectadas = await command.ExecuteNonQueryAsync();
+
+    return filasAfectadas > 0;
+}
+
 
         public async Task<int> GuardarInspeccionAsync(
             string codigoChecklist,

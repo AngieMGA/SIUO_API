@@ -16,27 +16,47 @@ namespace SIUO_API.Controllers
         }
 
         [HttpGet("conexion")]
-        public async Task<IActionResult> ProbarConexion()
+    public async Task<IActionResult> ProbarConexion()
+    {
+        try
         {
-            try
-            {
-                using var connection = _connectionFactory.CreateConnection();
+            using var connection = _connectionFactory.CreateConnection();
+            await connection.OpenAsync();
 
-                await connection.OpenAsync();
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+                SELECT
+                    DB_NAME() AS BaseDatos,
+                    SUSER_SNAME() AS UsuarioSQL,
+                    OBJECT_ID('userchecklist.INSPECCION', 'U') AS TablaInspeccion,
+                    OBJECT_ID('userchecklist.FOLIO_CONSECUTIVO', 'U') AS TablaFolios;
+            ";
 
-                return Ok(new
-                {
-                    mensaje = "Conexión exitosa con la base de datos Checklist."
-                });
-            }
-            catch (Exception ex)
+            using var reader = await command.ExecuteReaderAsync();
+            await reader.ReadAsync();
+
+            return Ok(new
             {
-                return StatusCode(500, new
-                {
-                    mensaje = "No se pudo conectar con la base de datos Checklist.",
-                    error = ex.Message
-                });
-            }
+                baseDatos = reader["BaseDatos"].ToString(),
+                usuarioSQL = reader["UsuarioSQL"].ToString(),
+                tablaInspeccion =
+                    reader["TablaInspeccion"] == DBNull.Value
+                        ? null
+                        : reader["TablaInspeccion"].ToString(),
+                tablaFolios =
+                    reader["TablaFolios"] == DBNull.Value
+                        ? null
+                        : reader["TablaFolios"].ToString()
+            });
         }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new
+            {
+                mensaje = "Falló la prueba de conexión.",
+                error = ex.Message
+            });
+        }
+    }
     }
 }

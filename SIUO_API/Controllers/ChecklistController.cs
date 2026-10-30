@@ -45,6 +45,7 @@ namespace SIUO_API.Controllers
         }
 
     // GENERAR FOLIO CENTRALIZADO
+    
     [HttpGet("folio")]
     public async Task<IActionResult> GenerarFolio(
         [FromQuery] string prefijo)
@@ -268,6 +269,17 @@ if (string.IsNullOrWhiteSpace(folio))
     {
         tipoChecklist =
             tipoChecklistElemento.GetString();
+    }
+
+    // Obtener el área que realiza el guardado
+    string? areaActual = null;
+
+    if (documento.RootElement.TryGetProperty(
+        "areaActual",
+        out var areaActualElemento)
+        && areaActualElemento.ValueKind == JsonValueKind.String)
+    {
+        areaActual = areaActualElemento.GetString();
     }
 
     // GUARDAR INSPECCIÓN PRINCIPAL EN SQL SERVER
@@ -3942,9 +3954,52 @@ if (idInspeccion.HasValue)
                 );
             }
 
-            // =====================================================
+            // =========================================================
+// FINALIZAR CHK-TRANSPORTE CUANDO APT GUARDA CORRECTAMENTE
+// =========================================================
+
+if (
+    string.Equals(
+        tipoChecklist,
+        "CHK-TRANSPORTE",
+        StringComparison.OrdinalIgnoreCase
+    )
+    &&
+    string.Equals(
+        areaActual,
+        "APT",
+        StringComparison.OrdinalIgnoreCase
+    )
+)
+{
+    if (!idInspeccion.HasValue)
+    {
+        return StatusCode(500, new
+        {
+            mensaje = "No se encontró el ID de la inspección para finalizarla."
+        });
+    }
+
+    bool estadoActualizado =
+        await _checklistRepository.ActualizarEstadoInspeccionAsync(
+            idInspeccion.Value,
+            "FINALIZADO"
+        );
+
+    if (!estadoActualizado)
+    {
+        return StatusCode(500, new
+        {
+            mensaje = "Los datos se procesaron, pero no se pudo actualizar el estado de la inspección en SQL."
+        });
+    }
+
+    Console.WriteLine(
+        $"CHK-TRANSPORTE finalizado en SQL. ID: {idInspeccion.Value}"
+    );
+}
+
             // RESPUESTA
-            // =====================================================
 
             return Ok(new
             {
@@ -3960,113 +4015,116 @@ if (idInspeccion.HasValue)
 
                 evidenciasGuardadas =
                     evidenciasGuardadas
+                    
             });
         }
 
-// GUARDAR PDF
+        
 
-[HttpPost("pdf")]
-[Consumes("multipart/form-data")]
-public async Task<IActionResult> GuardarPDF(
-    [FromForm] string folio,
-    [FromForm] string? areaMateriaPrima,
-    [FromForm] string tipoChecklist,
-    [FromForm] string? delivery,
-    [FromForm] string? material,
-     [FromForm] string? facturaRemision,
-    [FromForm] string? lote,
-    IFormFile pdf)
-{
-    Console.WriteLine("=================================");
-    Console.WriteLine("PDF RECIBIDO");
+    // GUARDAR PDF
 
-    Console.WriteLine(
-        $"TIPO CHECKLIST PDF: [{tipoChecklist}]"
-    );
-
-    // Validar folio
-
-    if (string.IsNullOrWhiteSpace(folio))
+    [HttpPost("pdf")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> GuardarPDF(
+        [FromForm] string folio,
+        [FromForm] string? areaMateriaPrima,
+        [FromForm] string tipoChecklist,
+        [FromForm] string? delivery,
+        [FromForm] string? material,
+        [FromForm] string? facturaRemision,
+        [FromForm] string? lote,
+        IFormFile pdf)
     {
-        return BadRequest(new
+        Console.WriteLine("=================================");
+        Console.WriteLine("PDF RECIBIDO");
+
+        Console.WriteLine(
+            $"TIPO CHECKLIST PDF: [{tipoChecklist}]"
+        );
+
+        // Validar folio
+
+        if (string.IsNullOrWhiteSpace(folio))
         {
-            mensaje = "No se recibió el folio."
-        });
-    }
+            return BadRequest(new
+            {
+                mensaje = "No se recibió el folio."
+            });
+        }
 
 
-    // Validar PDF
-    
+        // Validar PDF
+        
 
-    if (pdf == null || pdf.Length == 0)
-    {
-        return BadRequest(new
+        if (pdf == null || pdf.Length == 0)
         {
-            mensaje = "No se recibió el archivo PDF."
-        });
-    }
+            return BadRequest(new
+            {
+                mensaje = "No se recibió el archivo PDF."
+            });
+        }
 
-    // Evitar caracteres/rutas no deseadas
+        // Evitar caracteres/rutas no deseadas
 
-    folio = Path.GetFileName(folio);
+        folio = Path.GetFileName(folio);
 
-    // Obtener número de DELIVERY
+        // Obtener número de DELIVERY
 
-    if (string.IsNullOrWhiteSpace(delivery))
-    {
-        delivery = "SIN-DELIVERY";
-    }
+        if (string.IsNullOrWhiteSpace(delivery))
+        {
+            delivery = "SIN-DELIVERY";
+        }
 
-    delivery = Path.GetFileName(delivery);
+        delivery = Path.GetFileName(delivery);
 
-    Console.WriteLine(
-        $"Área PDF: {areaMateriaPrima}"
-    );
+        Console.WriteLine(
+            $"Área PDF: {areaMateriaPrima}"
+        );
 
-    Console.WriteLine(
-        $"Delivery PDF: {delivery}"
-    );
+        Console.WriteLine(
+            $"Delivery PDF: {delivery}"
+        );
 
-    // =====================================================
-    // CHK-TRANSPORTE
-    // SUBIR PDF DIRECTAMENTE AL FTP
-    // SIN CREAR COPIA LOCAL
-    // =====================================================
+        // =====================================================
+        // CHK-TRANSPORTE
+        // SUBIR PDF DIRECTAMENTE AL FTP
+        // SIN CREAR COPIA LOCAL
+        // =====================================================
 
-    if (
-        tipoChecklist?.Trim().Equals(
-            "CHK-TRANSPORTE",
-            StringComparison.OrdinalIgnoreCase
-        ) == true
-    )
-    {
-        // -------------------------------------------------
-        // Fecha actual
-        // -------------------------------------------------
+        if (
+            tipoChecklist?.Trim().Equals(
+                "CHK-TRANSPORTE",
+                StringComparison.OrdinalIgnoreCase
+            ) == true
+        )
+        {
+            // -------------------------------------------------
+            // Fecha actual
+            // -------------------------------------------------
 
-        DateTime fechaActual = DateTime.Now;
+            DateTime fechaActual = DateTime.Now;
 
-        string anio =
-            fechaActual.ToString("yyyy");
+            string anio =
+                fechaActual.ToString("yyyy");
 
-        string mes =
-            $"{fechaActual.Month}." +
-            fechaActual.ToString(
-                "MMMM",
-                new System.Globalization.CultureInfo("es-MX")
-            ).ToUpper();
+            string mes =
+                $"{fechaActual.Month}." +
+                fechaActual.ToString(
+                    "MMMM",
+                    new System.Globalization.CultureInfo("es-MX")
+                ).ToUpper();
 
-        string dia =
-            fechaActual.ToString(
-                "dd.MM.yyyy"
-            );
+            string dia =
+                fechaActual.ToString(
+                    "dd.MM.yyyy"
+                );
 
-        // -------------------------------------------------
-        // Nombre del PDF
-        // -------------------------------------------------
+            // -------------------------------------------------
+            // Nombre del PDF
+            // -------------------------------------------------
 
-        string nombreArchivo =
-            $"{folio}.pdf";
+            string nombreArchivo =
+                $"{folio}.pdf";
 
         // -------------------------------------------------
         // Ruta remota del FTP
