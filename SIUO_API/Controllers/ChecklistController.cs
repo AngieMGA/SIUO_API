@@ -128,15 +128,20 @@ namespace SIUO_API.Controllers
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(ruta) ||
+        (
             !ruta.StartsWith(
                 "/Pruebas/",
-                StringComparison.OrdinalIgnoreCase) ||
-            ruta.Contains(".."))
-        {
-            return BadRequest(new
+                StringComparison.OrdinalIgnoreCase) &&
+            !ruta.StartsWith(
+                "/CHECK LIST/REVISIÓN DE TRANSPORTE SG-F-24-06/",
+                StringComparison.OrdinalIgnoreCase)
+        ) ||
+        ruta.Contains(".."))
             {
-                mensaje = "La ruta del archivo no es válida."
-            });
+                return BadRequest(new
+                {
+                    mensaje = "La ruta del archivo no es válida."
+                });
         }
 
         string extension = Path.GetExtension(ruta)
@@ -208,6 +213,24 @@ namespace SIUO_API.Controllers
             [FromForm] string checklist,
             [FromForm] List<IFormFile>? evidencias)
         {
+
+            string NormalizarNombreFTP(string texto)
+{
+    if (string.IsNullOrWhiteSpace(texto))
+        return "";
+
+    return texto.Trim()
+        .Replace("/", "-")
+        .Replace("\\", "-")
+        .Replace(":", "-")
+        .Replace("*", "")
+        .Replace("?", "")
+        .Replace("\"", "")
+        .Replace("<", "")
+        .Replace(">", "")
+        .Replace("|", "");
+}
+
             Console.WriteLine("=================================");
             Console.WriteLine("CHECKLIST RECIBIDO");
             Console.WriteLine(
@@ -587,26 +610,37 @@ if (
         }
     }
 
-    await _checklistRepository.GuardarDatosRecepcionAsync(
-        idInspeccion.Value,
-        areaMateriaPrima ?? "",
-        material,
-        proveedor ?? "",
-        operador ?? "",
-        lote,
-        turno,
-        diseno,
-        especificarMaterial,
-        tripulacion,
-        placasNumero,
-        ordenCompra,
-        facturaRemision,
-        alergenoMicroSensitivo
-    );
+Console.WriteLine("========== DATOS RECEPCIÓN SG-F-24-01 ==========");
+Console.WriteLine($"ID inspección: {idInspeccion.Value}");
+Console.WriteLine($"Área: {areaMateriaPrima}");
+Console.WriteLine($"Material seleccionado: [{material}]");
+Console.WriteLine($"Material especificado: [{especificarMaterial}]");
 
-    Console.WriteLine(
-        "Datos de recepción de SG-F-24-01 guardados en SQL."
-    );
+await _checklistRepository.GuardarDatosRecepcionAsync(
+    idInspeccion.Value,
+    areaMateriaPrima ?? "",
+    material,
+    proveedor ?? "",
+    operador ?? "",
+    lote,
+    turno,
+    diseno,
+    especificarMaterial,
+    tripulacion,
+    placasNumero,
+    ordenCompra,
+    facturaRemision,
+    alergenoMicroSensitivo
+);
+
+Console.WriteLine(
+    $"DATOS DE RECEPCIÓN GUARDADOS EN SQL. " +
+    $"ID inspección: {idInspeccion.Value}; " +
+    $"Material: [{material}]; " +
+    $"Material especificado: [{especificarMaterial}]"
+);
+Console.WriteLine("================================================");
+
 }
 
 // GUARDAR RESPUESTAS SG-F-24-01
@@ -735,9 +769,8 @@ if (
     ) == true
 )
 {
-    // ---------------------------------------------------------
+
     // Obtener material
-    // ---------------------------------------------------------
 
     string? material = null;
 
@@ -1395,10 +1428,8 @@ if (
         }
     }
 
-    // =========================================================
     // ESTADO DE SUPERSACOS
     // Azúcar + Concentrado + Otro
-    // =========================================================
 
     if (
         esAzucar
@@ -1836,17 +1867,15 @@ else
     carpetaChecklist = "Otros";
 }
 
-// -----------------------------------------------------
 // Obtener número de DELIVERY
-// -----------------------------------------------------
 
 string? delivery = null;
 
 if (documento.RootElement.TryGetProperty(
     "delivery",
-    out var deliveryElemento))
+    out var deliveryEvidenciaElemento))
 {
-    delivery = deliveryElemento.GetString();
+    delivery = deliveryEvidenciaElemento.GetString();
 }
 
 if (string.IsNullOrWhiteSpace(delivery))
@@ -1855,7 +1884,7 @@ if (string.IsNullOrWhiteSpace(delivery))
 }
 
 delivery = Path.GetFileName(delivery);
-// =========================================================
+
 // GUARDAR DATOS GENERALES DE SG-F-24-33 EN SQL SERVER
 
 Console.WriteLine("========================================");
@@ -3707,256 +3736,265 @@ if (
     );
 }
 
-// Crear carpeta principal del checklist
-// -----------------------------------------------------
-// Crear carpeta principal del checklist
 
-string carpetaBase;
+// =========================================================
+// EVIDENCIAS: ALMACENAMIENTO DIRECTO EN FTP
+// =========================================================
 
-if (tipoChecklist == "CHK-TRANSPORTE")
+int evidenciasGuardadas = 0;
+
+string? carpetaFTP = null;
+
+DateTime fechaEvidencias = DateTime.Now;
+
+string anioEvidencias = fechaEvidencias.ToString("yyyy");
+
+string mesEvidencias =
+    $"{fechaEvidencias.Month}." +
+    fechaEvidencias.ToString(
+        "MMMM",
+        new System.Globalization.CultureInfo("es-MX")
+    ).ToUpper();
+
+string diaEvidencias =
+    fechaEvidencias.ToString("dd.MM.yyyy");
+
+// ---------------------------------------------------------
+// SG-F-24-01: MATERIAS PRIMAS
+// ---------------------------------------------------------
+
+if (
+    tipoChecklist == "SG-F-24-01" &&
+    string.Equals(
+        areaMateriaPrima?.Trim(),
+        "Materias Primas",
+        StringComparison.OrdinalIgnoreCase
+    )
+)
 {
-    DateTime fechaActual = DateTime.Now;
+    string? materialEvidencia = null;
+    string? materialEspecificadoEvidencia = null;
 
-    string anio =
-        fechaActual.ToString("yyyy");
+    if (
+        documento.RootElement.TryGetProperty(
+            "material",
+            out var materialElemento
+        ) &&
+        materialElemento.ValueKind == JsonValueKind.String
+    )
+    {
+        materialEvidencia = materialElemento.GetString();
+    }
 
-    string mes =
-        $"{fechaActual.Month}." +
-        fechaActual.ToString(
-            "MMMM",
-            new System.Globalization.CultureInfo("es-MX")
-        ).ToUpper();
+    if (
+        documento.RootElement.TryGetProperty(
+            "materialEspecificado",
+            out var especificadoElemento
+        ) &&
+        especificadoElemento.ValueKind == JsonValueKind.String
+    )
+    {
+        materialEspecificadoEvidencia =
+            especificadoElemento.GetString();
+    }
 
-    string dia =
-        fechaActual.ToString("dd.MM.yyyy");
+    string materialCarpeta = materialEvidencia ?? "";
 
-    carpetaBase = Path.Combine(
-        Directory.GetCurrentDirectory(),
-        "Pruebas",
-        anio,
-        mes,
-        dia,
-        delivery
-    );
-}
-else
-{
-    // Los demás checklists permanecen igual
-    carpetaBase = Path.Combine(
-        Directory.GetCurrentDirectory(),
-        "ArchivosChecklist",
-        carpetaChecklist,
-        folio
-    );
-}
+    if (
+        string.Equals(
+            materialEvidencia?.Trim(),
+            "Otro",
+            StringComparison.OrdinalIgnoreCase
+        )
+    )
+    {
+        materialCarpeta =
+            materialEspecificadoEvidencia ?? "";
+    }
 
-Directory.CreateDirectory(
-    carpetaBase
-);
+    string materialFTP =
+        NormalizarNombreFTP(materialCarpeta);
 
-// Crear carpeta de evidencias
-// SOLO CHK-TRANSPORTE
-
-string? carpetaEvidencias = null;
-
-if (tipoChecklist == "CHK-TRANSPORTE")
-{
-    carpetaEvidencias = Path.Combine(
-        carpetaBase,
-        "Evidencias"
-    );
-
-    Directory.CreateDirectory(
-        carpetaEvidencias
-    );
-}
-
-        Console.WriteLine(
-            $"Área: {areaMateriaPrima}"
-        );
-
-        Console.WriteLine(
-            $"Carpeta checklist: {carpetaBase}"
-        );
-
-        if (carpetaEvidencias != null)
+    if (string.IsNullOrWhiteSpace(materialFTP))
+    {
+        return BadRequest(new
         {
-            Console.WriteLine(
-                $"Carpeta evidencias: {carpetaEvidencias}"
+            mensaje = "No se recibió un material válido para guardar las evidencias."
+        });
+    }
+
+    carpetaFTP =
+        "/CHECK LIST/LISTA CHEQUEO SG-F-24-01 MATERIAS PRIMAS/" +
+        anioEvidencias + "/" +
+        mesEvidencias + "/" +
+        diaEvidencias + "/" +
+        materialFTP + "/Evidencias/";
+}
+
+// ---------------------------------------------------------
+// CHK-TRANSPORTE
+// ---------------------------------------------------------
+
+else if (
+    string.Equals(
+        tipoChecklist,
+        "CHK-TRANSPORTE",
+        StringComparison.OrdinalIgnoreCase
+    )
+)
+{
+    string? deliveryEvidencia = null;
+
+    if (
+        documento.RootElement.TryGetProperty(
+            "delivery",
+            out var deliveryElemento
+        ) &&
+        deliveryElemento.ValueKind == JsonValueKind.String
+    )
+    {
+        deliveryEvidencia = deliveryEvidenciaElemento.GetString();
+    }
+
+    deliveryEvidencia =
+        Path.GetFileName(deliveryEvidencia ?? "");
+
+    if (string.IsNullOrWhiteSpace(deliveryEvidencia))
+    {
+        deliveryEvidencia = "SIN-DELIVERY";
+    }
+
+    carpetaFTP =
+        "/CHECK LIST/REVISIÓN DE TRANSPORTE SG-F-24-06/" +
+        anioEvidencias + "/" +
+        mesEvidencias + "/" +
+        diaEvidencias + "/" +
+        deliveryEvidencia + "/Evidencias/";
+}
+
+// ---------------------------------------------------------
+// RH-F-01-21
+// ---------------------------------------------------------
+
+else if (
+    string.Equals(
+        tipoChecklist,
+        "RH-F-01-21",
+        StringComparison.OrdinalIgnoreCase
+    )
+)
+{
+    string? deliveryRHEvidencia = null;
+
+    if (
+        documento.RootElement.TryGetProperty(
+            "numeroDelivery",
+            out var numeroDeliveryElemento
+        ) &&
+        numeroDeliveryElemento.ValueKind == JsonValueKind.String
+    )
+    {
+        deliveryRHEvidencia =
+            numeroDeliveryElemento.GetString();
+    }
+
+    deliveryRHEvidencia =
+        Path.GetFileName(deliveryRHEvidencia ?? "");
+
+    if (string.IsNullOrWhiteSpace(deliveryRHEvidencia))
+    {
+        deliveryRHEvidencia = "SIN-DELIVERY";
+    }
+
+    carpetaFTP =
+        "/CHECK LIST/SEGURIDAD ENTRADA Y SALIDA RH-F-01-21/" +
+        anioEvidencias + "/" +
+        mesEvidencias + "/" +
+        diaEvidencias + "/" +
+        deliveryRHEvidencia + "/Evidencias/";
+}
+
+// ---------------------------------------------------------
+// SUBIR EVIDENCIAS Y REGISTRARLAS EN SQL
+// ---------------------------------------------------------
+
+if (evidencias != null && evidencias.Count > 0)
+{
+    if (carpetaFTP == null)
+    {
+        return BadRequest(new
+        {
+            mensaje = "Este checklist no admite evidencias."
+        });
+    }
+
+    if (!idInspeccion.HasValue)
+    {
+        return BadRequest(new
+        {
+            mensaje = "No se encontró el identificador de la inspección para registrar las evidencias."
+        });
+    }
+
+    int numeroEvidencia =
+        await _checklistRepository.ObtenerCantidadEvidenciasAsync(
+            idInspeccion.Value
+        ) + 1;
+
+    foreach (var evidencia in evidencias)
+    {
+        if (evidencia.Length <= 0)
+        {
+            continue;
+        }
+
+        string extension =
+            Path.GetExtension(evidencia.FileName);
+
+        if (string.IsNullOrWhiteSpace(extension))
+        {
+            extension = ".jpg";
+        }
+
+        string nombreArchivo =
+            $"{folio}-{numeroEvidencia:D2}{extension}";
+
+        numeroEvidencia++;
+
+        string rutaRemota =
+            carpetaFTP + nombreArchivo;
+
+        await using (Stream stream = evidencia.OpenReadStream())
+        {
+            await _ftpService.SubirStreamAsync(
+                stream,
+                rutaRemota
             );
         }
 
-            Console.WriteLine(
-                $"Carpeta checklist: {carpetaBase}"
-            );
-
-            Console.WriteLine(
-                $"Carpeta evidencias: {carpetaEvidencias}"
-            );
-
-            // =====================================================
-            // GUARDAR EVIDENCIAS
-            // =====================================================
-
-            int evidenciasGuardadas = 0;
-
-            if (
-                evidencias != null &&
-                evidencias.Count > 0 &&
-                carpetaEvidencias != null
-            )
-            {
-                Console.WriteLine(
-    $"Evidencias recibidas: {evidencias.Count}"
-);
-
-// =====================================================
-// OBTENER SIGUIENTE NÚMERO DE EVIDENCIA
-// =====================================================
-
-int numeroEvidencia = 1;
-
-if (idInspeccion.HasValue)
-{
-    int cantidadExistente =
-        await _checklistRepository
-            .ObtenerCantidadEvidenciasAsync(
-                idInspeccion.Value
-            );
-
-    numeroEvidencia =
-        cantidadExistente + 1;
-
-        Console.WriteLine(
-            $"Evidencias existentes: {cantidadExistente}"
-        );
-
-        Console.WriteLine(
-            $"Siguiente número de evidencia: {numeroEvidencia}"
-        );
-    }
-
-    for (
-        int i = 0;
-        i < evidencias.Count;
-        i++
-    )
-    {
-        var evidencia = evidencias[i];
-
-                    if (evidencia.Length <= 0)
-                    {
-                        continue;
-                    }
-
-                    string extension =
-                        Path.GetExtension(
-                            evidencia.FileName
-                        );
-
-                    if (
-                        string.IsNullOrWhiteSpace(
-                            extension
-                        )
-                    )
-                    {
-                        extension = ".jpg";
-                    }
-
-                    string nombreArchivo =
-                    $"{folio}-{numeroEvidencia:D2}{extension}";
-
-                numeroEvidencia++;
-
-                    string rutaArchivo =
-                        Path.Combine(
-                            carpetaEvidencias,
-                            nombreArchivo
-                        );
-
-                    using (
-                        var stream =
-                            new FileStream(
-                                rutaArchivo,
-                                FileMode.Create
-                            )
-                    )
-                    {
-                        await evidencia.CopyToAsync(
-                            stream
-                        );
-                    }
-
-// -----------------------------------------------------
-// SUBIR EVIDENCIA AL FTP
-// -----------------------------------------------------
-Console.WriteLine(
-    $"TIPO CHECKLIST ANTES DE FTP: [{tipoChecklist}]"
-);
-
-if (tipoChecklist == "CHK-TRANSPORTE")
-{
-    string carpetaPruebasLocal =
-        Path.Combine(
-            Directory.GetCurrentDirectory(),
-            "Pruebas"
-        );
-
-    string rutaRelativa =
-        Path.GetRelativePath(
-            carpetaPruebasLocal,
-            carpetaBase
-        );
-
-    string rutaRemota =
-        "/Pruebas/" +
-        rutaRelativa.Replace("\\", "/") +
-        "/Evidencias/" +
-        nombreArchivo;
-
-    await _ftpService.SubirArchivoAsync(
-    rutaArchivo,
-    rutaRemota
-);
-
-Console.WriteLine(
-    $"Evidencia subida al FTP: {rutaRemota}"
-);
-
-// REGISTRAR EVIDENCIA EN SQL
-
-if (idInspeccion.HasValue)
-{
-    await _checklistRepository
-        .GuardarEvidenciaAsync(
+        await _checklistRepository.GuardarEvidenciaAsync(
             idInspeccion.Value,
             nombreArchivo,
             rutaRemota
         );
 
-    Console.WriteLine(
-        $"Evidencia registrada en SQL: {nombreArchivo}"
-    );
+        evidenciasGuardadas++;
+
+        Console.WriteLine(
+            $"Evidencia subida al FTP: {rutaRemota}"
+        );
+
+        Console.WriteLine(
+            $"Evidencia registrada en SQL: {nombreArchivo}"
+        );
+    }
 }
-}
 
-                    evidenciasGuardadas++;
+Console.WriteLine(
+    $"Total de evidencias guardadas: {evidenciasGuardadas}"
+);
 
-                    Console.WriteLine(
-                        $"Evidencia guardada: {nombreArchivo}"
-                    );
-                }
-            }
-            else
-            {
-                Console.WriteLine(
-                    "No se recibieron evidencias."
-                );
-            }
-
-            // =========================================================
 // FINALIZAR CHK-TRANSPORTE CUANDO APT GUARDA CORRECTAMENTE
-// =========================================================
 
 if (
     string.Equals(
@@ -4025,15 +4063,17 @@ if (
 
     [HttpPost("pdf")]
     [Consumes("multipart/form-data")]
+    
     public async Task<IActionResult> GuardarPDF(
-        [FromForm] string folio,
-        [FromForm] string? areaMateriaPrima,
-        [FromForm] string tipoChecklist,
-        [FromForm] string? delivery,
-        [FromForm] string? material,
-        [FromForm] string? facturaRemision,
-        [FromForm] string? lote,
-        IFormFile pdf)
+    [FromForm] string folio,
+    [FromForm] string? areaMateriaPrima,
+    [FromForm] string tipoChecklist,
+    [FromForm] string? delivery,
+    [FromForm] string? material,
+    [FromForm] string? materialEspecificado,
+    [FromForm] string? facturaRemision,
+    [FromForm] string? lote,
+    IFormFile pdf)
     {
         Console.WriteLine("=================================");
         Console.WriteLine("PDF RECIBIDO");
@@ -4131,16 +4171,16 @@ if (
         // -------------------------------------------------
 
         string rutaRemota =
-            "/Pruebas/" +
-            anio +
-            "/" +
-            mes +
-            "/" +
-            dia +
-            "/" +
-            delivery +
-            "/" +
-            nombreArchivo;
+        "/CHECK LIST/REVISIÓN DE TRANSPORTE SG-F-24-06/" +
+        anio +
+        "/" +
+        mes +
+        "/" +
+        dia +
+        "/" +
+        delivery +
+        "/" +
+        nombreArchivo;
 
         Console.WriteLine(
             "================================="
@@ -4465,43 +4505,6 @@ if (
         mes +
         "/";
 
-    // -------------------------------------------------
-    // Materias Primas:
-    // Año -> Mes -> Material -> Fecha
-    // -------------------------------------------------
-
-    if (
-        areaMateriaPrima.Trim().Equals(
-            "Materias Primas",
-            StringComparison.OrdinalIgnoreCase
-        )
-    )
-    {
-        if (string.IsNullOrWhiteSpace(material))
-        {
-            return BadRequest(new
-            {
-                mensaje =
-                    "No se recibió el material de SG-F-24-01."
-            });
-        }
-
-        string materialFTP =
-            NormalizarNombreFTP(material);
-
-        if (string.IsNullOrWhiteSpace(materialFTP))
-        {
-            return BadRequest(new
-            {
-                mensaje =
-                    "El material recibido no es válido."
-            });
-        }
-
-        rutaRemota +=
-            materialFTP +
-            "/";
-    }
 
     // -------------------------------------------------
     // Fecha del día
@@ -4510,6 +4513,47 @@ if (
     rutaRemota +=
         dia +
         "/";
+
+        // Materias Primas: crear carpeta con el nombre del material
+if (
+    areaMateriaPrima.Trim().Equals(
+        "Materias Primas",
+        StringComparison.OrdinalIgnoreCase
+    )
+)
+{
+   string materialCarpeta = material ?? "";
+
+// Si se seleccionó "Otro", utilizar el material escrito.
+if (string.Equals(
+        material?.Trim(),
+        "Otro",
+        StringComparison.OrdinalIgnoreCase))
+{
+    materialCarpeta = materialEspecificado ?? "";
+}
+
+if (string.IsNullOrWhiteSpace(materialCarpeta))
+{
+    return BadRequest(new
+    {
+        mensaje =
+            "No se recibió un material válido para SG-F-24-01."
+    });
+}
+
+string materialFTP = NormalizarNombreFTP(materialCarpeta);
+
+if (string.IsNullOrWhiteSpace(materialFTP))
+{
+    return BadRequest(new
+    {
+        mensaje =
+            "El material recibido no es válido."
+    });
+}
+    rutaRemota += materialFTP + "/";
+}
 
     // -------------------------------------------------
     // Agregar nombre del PDF
@@ -4530,8 +4574,12 @@ if (
         $"Área: {areaMateriaPrima}"
     );
 
+   Console.WriteLine(
+    $"Material seleccionado: [{material}]"
+);
+
     Console.WriteLine(
-        $"Material: {material}"
+        $"Material especificado: [{materialEspecificado}]"
     );
 
     Console.WriteLine(
